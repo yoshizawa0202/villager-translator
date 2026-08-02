@@ -13,6 +13,8 @@ Minecraft の MOD、クエスト、Patchouli ガイドブックをローカル�
 
 初期基盤の仕様は [docs/specs/001-foundation.md](docs/specs/001-foundation.md) にあります。機能追加時は、番号付きの仕様書を先に追加または更新し、受け入れ条件を満たすテストと実装を同じ変更に含めます。
 
+`MinecraftModsLocalizer` から移植する機能の全体像と移行方針は [docs/feature-spec.md](docs/feature-spec.md) にまとめています。番号付き仕様書はこの文書のセクションを元に機能単位で切り出します。
+
 移行元の要件は `../MinecraftModsLocalizer/docs/spec.md` を参照してください。新規実装の正本はこのリポジトリ内の `docs/specs/` です。
 
 ## 前提条件
