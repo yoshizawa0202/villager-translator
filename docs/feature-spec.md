@@ -195,7 +195,7 @@ Dart への移植を想定したモデル定義方針(旧実装 `src/lib/types/m
 ### 7.1 FTB Quests
 
 - **KubeJS 経由**: `{プロファイル}/kubejs/assets/kubejs/lang/en_us.json` が存在する場合、そのディレクトリ内の `*.json` を対象とする(既に翻訳済みファイル名パターンは除外)。
-- **要検証(実装前に確認する)**: 旧 `docs/spec.md` §7.3.2/§7.9.2 は、KubeJS 経由の場合に翻訳結果を **`kubejs/assets/kubejs/lang/{targetLanguage}.json` と `kubejs/assets/ftbquests/lang/{targetLanguage}.json` の2箇所へ出力する**と明記しているが、旧実装の実コードは前者(`kubejs/lang/`)にしか書き込んでいなかった。FTB Quests が実際にどちらのパスから翻訳文字列を読み込むか(あるいは両方必要か)は未検証であり、誤ったパスにしか出力しないと**翻訳ファイルは生成されるがゲーム内表示に反映されない**という致命的な不具合になり得る。`docs/specs/005-quest-translation.md` 着手前に、FTB Quests / KubeJS Localization の実際の仕様または実機検証で出力先を確定させ、必要であれば両方のパスへ出力する。
+- **出力先(設計判断)**: 旧 `docs/spec.md` §7.3.2/§7.9.2 は、KubeJS 経由の場合に翻訳結果を **`kubejs/assets/kubejs/lang/{targetLanguage}.json` と `kubejs/assets/ftbquests/lang/{targetLanguage}.json` の2箇所へ出力する**と明記していたが、旧実装の実コードは前者(`kubejs/lang/`)にしか書き込んでいなかった。これは旧実装側の不備(設計意図の未実装)と判断し、Villager Translator では**設計意図どおり両方のパスへ出力する**。誤ったパスにしか出力しないと**翻訳ファイルは生成されるがゲーム内表示に反映されない**という致命的な不具合になり得るため、片方のみへの出力は選択しない。ただし FTB Quests / KubeJS Localization が実際にどちらのパスから翻訳文字列を読み込むかは未検証のままであり、`docs/specs/005-quest-translation.md` の実装後に実機(FTB Quests + KubeJS 導入環境)での目視確認を別途行う。
 - **SNBT 直接編集**: KubeJS lang が存在しない場合、`config/ftbquests/quests`(標準)→ `config/ftbquests/normal`(FTB Interactions Remastered 用)→ `config/ftbquests`(フォールバック)の順に存在するディレクトリを探し、配下の `*.snbt` を再帰的に列挙する。
 - SNBT からの翻訳対象文字列抽出は、`title` `subtitle` `description` の値を正規表現で抽出する方式(旧 `docs/spec.md` §7.2.2 のサンプル実装を踏襲。エスケープされた `"` は前方のバックスラッシュ数で判定)。
 - **SNBT ファイルは翻訳後、同じファイルに直接上書きする**(言語サフィックスを付けない)。Minecraft がそのまま読み込める状態を維持するため。
@@ -223,12 +223,12 @@ Dart への移植を想定したモデル定義方針(旧実装 `src/lib/types/m
 2. 各 JAR 内の `assets/{modId}/patchouli_books/{bookId}/en_us/**/*.json` に一致する全ファイルを検出する(ページ・カテゴリのサブディレクトリを含めて再帰的に)。
 3. 各ファイルから `"name"` `"description"` `"title"` `"text"` キーの値のみを対象に抽出する(JSON 全体を構造的にパースするのではなく、値抽出に限定する軽量な方式)。
 4. 同一本(`{modId}:{bookId}`)に属する全ファイルの抽出結果を**1つの翻訳単位に統合**する。
-5. 既存翻訳の判定は `assets/{modId}/patchouli_books/{bookId}/{lang}.json` の単一ファイル有無で行う。出力がキー→値のフラットな JSON マップであるため、§4.2 の「差分更新」対象に含める(不足キーのみ翻訳して既存ファイルにマージする)。
+5. 既存翻訳の判定は、`en_us/` 配下の各ファイルに対応する `assets/{modId}/patchouli_books/{bookId}/{lang}/` 配下(`en_us` と同一の相対パス)のファイル有無・内容で行う(ディレクトリミラー方式。詳細・根拠は `docs/specs/006-patchouli-translation.md` の「Patchouli 出力構造の検証結果」参照)。ファイル相対パス+キー位置を複合キーとしたエントリ集合に正規化した上で、§4.2 の「差分更新」対象に含める(不足エントリのみ翻訳して既存ファイルにマージする)。
 
 ### 8.2 翻訳・出力
 
 - 翻訳結果は JAR ファイルへ追記する形で書き込む(コピー→全エントリをストリーミング転送→新規エントリ追加→原本を置き換え、というアトミックな差し替え手順)。
-- **未解決の設計課題**(旧実装からの引き継ぎ検討事項): 旧実装は抽出元が `en_us/` 配下の複数ファイルにまたがっていても、出力は `patchouli_books/{bookId}/{language}.json` という**単一のフラットファイル**にまとめていた。Patchouli 本体が実行時にどのパスから翻訳データを解決するか(単一ファイルか、`en_us/` と同じディレクトリ構造を `{lang}/` 配下にミラーする必要があるか)は、**Patchouli 側の実際の仕様を検証してから決定する**。この検証は本機能の `docs/specs/00N-patchouli.md` 作成時に完了させ、対象外として先送りしない。
+- **出力構造の決定**(旧実装からの引き継ぎ検討事項に対する回答): 旧実装は抽出元が `en_us/` 配下の複数ファイルにまたがっていても、出力は `patchouli_books/{bookId}/{language}.json` という**単一のフラットファイル**にまとめていた。公式ドキュメント(Patchouli Getting Started: https://vazkiimods.github.io/Patchouli/docs/patchouli-basics/getting-started/ )およびソースコード(`VazkiiMods/Patchouli` の `BookContentResourceDirectLoader.java` 等、`patchouli_books/{bookId}/{locale}/{folder}/...` という en_us と同一階層を locale ごとに探索する実装)の調査の結果、Patchouli は**`en_us/` と同じディレクトリ構造を `{lang}/` 配下にミラーする方式**を前提としており、単一フラットファイルへの集約は仕様と一致しないと判断した。各ミラーファイルは対応する en_us ファイルの完全なコピーに翻訳値のみを適用する「フルコピー方式」とする(スパース上書きが可能かは文書上未確証のため、実装後に実機確認する。§16.4 参照)。詳細は `docs/specs/006-patchouli-translation.md` を参照。
 - MOD 翻訳と異なり、**書き込み前に JAR 自体のバックアップは行わない**(セッションログ・進捗記録のみ)。Villager Translator では `AGENTS.md` の「元データ保全」制約に従い、**JAR 書き換え前に原本を退避するバックアップを必須の受け入れ条件に含める**(旧実装からの意図的な改善)。
 
 ## 9. カスタムファイル翻訳機能
@@ -302,20 +302,29 @@ Dart への移植を想定したモデル定義方針(旧実装 `src/lib/types/m
 | プロンプトプレースホルダー | `{x}` と `{{x}}` の2系統が併存し、後者は実際には置換されない | `{x}` 系に一本化(§4.3) |
 | 既存翻訳スキップの重複チェック | MOD タブで最大3回同じ判定を実行 | スキャン時 + 翻訳直前の2回に整理(§4.2) |
 | SNBT コンテンツ種別判定 | 判定結果が出力ロジックで未使用(死んだ配線) | 判定ロジック自体を実装しない(§7.3) |
-| Patchouli 出力ファイル構造 | 複数ファイルから抽出した内容を単一フラットファイルに出力し、Patchouli の実際のロード仕様と一致するか未検証 | 実装前に Patchouli 側仕様を検証し、必要なら `en_us/` 相当のディレクトリ構造をミラーする(§8.2) |
+| Patchouli 出力ファイル構造 | 複数ファイルから抽出した内容を単一フラットファイルに出力しており、公式ドキュメント・ソースコード調査の結果、Patchouli の実際のロード仕様(ディレクトリミラー方式)と一致しないと判明 | `en_us/` 相当のディレクトリ構造を `{lang}/` 配下にミラーする方式に変更する(§8.2、`docs/specs/006-patchouli-translation.md`) |
 | Patchouli 翻訳前バックアップ | JAR を書き換える前のバックアップが存在しない | 書き換え前バックアップを必須の受け入れ条件に追加(§8.2, §12) |
 | 既存翻訳の差分更新 | 旧 `docs/spec.md` は差分更新を意図していたが、実装は「既存なら丸ごとスキップ」の二値判定のみだった | 差分更新モードを新設し実装する(§4.2, §5.5) |
 | 既存翻訳スキップの言語コード対応 | クエストのスキャン時除外判定が既定9言語のみのハードコードリストに依存し、カスタム言語を追加したユーザーには機能しなかった | 言語コードに依存しない汎用的な存在チェック(§5.5 の差分更新と共通のキー比較ロジック)に統一する |
 | API キーの保存方式 | 設定ファイルに平文で保存していた | 暗号化(復号可能)によるセキュアストレージに保存する(§15) |
+| FTB Quests(KubeJS)の出力先 | 旧 `docs/spec.md` の設計意図(2箇所出力)に対し、実コードは `kubejs/assets/kubejs/lang/` のみに出力していた | 旧実装を不備と判断し、`kubejs/assets/kubejs/lang/` と `kubejs/assets/ftbquests/lang/` の両方へ出力する(§7.1)。実機での動作確認は §16.4 参照 |
 
 ### 16.3 実装前に検証が必要な項目(要検証)
 
-旧アプリの設計意図(`docs/spec.md`)と実際の挙動が食い違っている、または実際の Minecraft/MOD 側仕様との整合性が未確認の項目。該当する `docs/specs/00N-*.md` の着手前に検証を完了させ、対象外として先送りしない。
+実際の Minecraft/MOD 側仕様との整合性が未確認で、誤った出力構造を実装すると手戻りが大きい項目。該当する `docs/specs/00N-*.md` の着手前に検証を完了させ、対象外として先送りしない。
 
 | 項目 | 内容 | 参照 |
 |---|---|---|
-| FTB Quests(KubeJS)の出力先 | `kubejs/assets/kubejs/lang/` のみで良いか、`kubejs/assets/ftbquests/lang/` にも出力が必要か | §7.1 |
-| Patchouli 翻訳結果の出力構造 | 単一フラットファイルで良いか、`en_us/` と同じディレクトリ構造を `{lang}/` にミラーする必要があるか | §8.2 |
+| ~~Patchouli 翻訳結果の出力構造~~ | ~~単一フラットファイルで良いか、`en_us/` と同じディレクトリ構造を `{lang}/` にミラーする必要があるか~~ → 公式ドキュメント・ソースコード調査により解決済み(ディレクトリミラー方式)。残るスパース上書き可否の確認は §16.4 参照 | §8.2、`docs/specs/006-patchouli-translation.md` |
+
+### 16.4 実装後に実機確認が必要な項目
+
+旧アプリの設計意図(`docs/spec.md`)と実際の挙動が食い違っていた項目のうち、対応方針は決定済みで実装をブロックしないが、念のため該当機能の実装後に実機での動作確認を行い、必要であれば仕様を更新するもの。
+
+| 項目 | 内容 | 参照 |
+|---|---|---|
+| FTB Quests(KubeJS)の出力先 | 旧実装の不備と判断し `kubejs/assets/kubejs/lang/` と `kubejs/assets/ftbquests/lang/` の両方へ出力する方針としたが、FTB Quests / KubeJS Localization が実際にどちらのパスから読み込むかは未検証 | §7.1 |
+| Patchouli 翻訳ファイルのフルコピー方式 | ディレクトリミラー方式であることは公式ドキュメント・ソースコードで確認できたが、翻訳対象キーのみを含む部分的な JSON(スパース上書き)で足りるか、en_us と同一構造を持つ完全な JSON(フルコピー)が必要かは文書上未確証。安全側としてフルコピー方式を採用済み | §8.2、`docs/specs/006-patchouli-translation.md` |
 
 ## 17. 実装順序案
 
@@ -325,7 +334,7 @@ Dart への移植を想定したモデル定義方針(旧実装 `src/lib/types/m
 2. `003-translation-engine.md`: チャンク分割・応答検証・リトライ(§5.2〜5.3)。単体テストで担保できる範囲。
 3. `004-mod-translation.md`: MOD スキャン・翻訳(§6)。最も単純な出力形態(新規リソースパック)から着手する。
 4. `005-quest-translation.md`: FTB Quests / Better Quests(§7)。SNBT 直接上書きのリスクが高いため、バックアップの受け入れ条件を必須にする。
-5. `006-patchouli-translation.md`: Patchouli ガイドブック(§8)。着手前に Patchouli の出力仕様を検証するタスクを含める。
+5. `006-patchouli-translation.md`: Patchouli ガイドブック(§8)。出力仕様(ディレクトリミラー方式)は公式ドキュメント調査により決定済み。実装後に実機確認するタスク(§16.4)を含める。
 6. `007-custom-files-translation.md`: カスタムファイル翻訳(§9)。
 7. `008-progress-log-history.md`: 進捗・キャンセル・ログ・バックアップ・履歴の横断機能(§10〜13)を、上記機能追加と並行しつつ最終的に整理する回として設ける。
 
