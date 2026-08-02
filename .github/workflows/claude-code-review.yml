@@ -1,0 +1,30 @@
+name: Claude Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  claude-review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+      id-token: write
+    steps:
+      - name: リポジトリを取得
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Claude によるコードレビュー
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            このプルリクエストの差分をレビューしてください。
+            バグ、セキュリティ上の懸念、パフォーマンス上の問題、コードスタイルの一貫性を確認し、
+            指摘事項を日本語でPRにコメントしてください。問題がなければその旨を簡潔に伝えてください。
+          claude_args: |
+            --allowedTools "Read,Grep,Glob"
