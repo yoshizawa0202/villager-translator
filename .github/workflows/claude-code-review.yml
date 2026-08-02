@@ -3,21 +3,16 @@ name: Claude Code Review
 on:
   pull_request:
     types: [opened, synchronize, ready_for_review, reopened]
-    # Optional: Only run on specific file changes
-    # paths:
-    #   - "src/**/*.ts"
-    #   - "src/**/*.tsx"
-    #   - "src/**/*.js"
-    #   - "src/**/*.jsx"
+    # Flutter アプリ本体・テスト・仕様書に関わる変更のみレビュー対象にする
+    paths:
+      - "lib/**"
+      - "test/**"
+      - "docs/specs/**"
+      - "pubspec.yaml"
+      - "pubspec.lock"
 
 jobs:
   claude-review:
-    # Optional: Filter by PR author
-    # if: |
-    #   github.event.pull_request.user.login == 'external-contributor' ||
-    #   github.event.pull_request.user.login == 'new-developer' ||
-    #   github.event.pull_request.author_association == 'FIRST_TIME_CONTRIBUTOR'
-
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -26,12 +21,12 @@ jobs:
       id-token: write
 
     steps:
-      - name: Checkout repository
+      - name: リポジトリを取得
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
 
-      - name: Run Claude Code Review
+      - name: Claude Code レビューを実行
         id: claude-review
         uses: anthropics/claude-code-action@v1
         with:
@@ -39,6 +34,9 @@ jobs:
           plugin_marketplaces: 'https://github.com/anthropics/claude-code.git'
           plugins: 'code-review@claude-code-plugins'
           prompt: '/code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }}'
+          # AGENTS.md（CLAUDE.md からインポート）の言語方針に合わせ、レビューの要約・指摘コメントを日本語で出力させる
+          claude_args: |
+            --append-system-prompt "PRレビューの要約・指摘コメントは必ず日本語で記述してください。コードや識別子名は元の言語（英語）のまま変更しないでください。"
           # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
           # or https://code.claude.com/docs/en/cli-reference for available options
 
