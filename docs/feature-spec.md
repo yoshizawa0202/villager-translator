@@ -91,9 +91,9 @@ Dart への移植を想定したモデル定義方針(旧実装 `src/lib/types/m
 - プロバイダー選択: OpenAI / Anthropic / Google Gemini。
 - プロバイダーごとに個別の API キーを保存する(`apiKeys: { openai, anthropic, gemini }`)。
 - モデル選択はコンボボックス方式とする。旧実装の完全自由入力(タイプミスや存在しないモデル名を入力できてしまう)を改め、プロバイダーごとに代表的なモデルを選択肢として提示しつつ、一覧にないモデルも使えるよう「カスタム」項目で自由入力にフォールバックできるハイブリッド方式にする。
-    - OpenAI の選択肢例: `gpt-4o-mini`(既定)、`gpt-4o`、`gpt-4.1`、`gpt-4.1-mini`、`o4-mini`
-    - Anthropic の選択肢例: `claude-3-5-haiku-20241022`(既定)、`claude-3-5-sonnet-20241022`、`claude-opus-4-1`
-    - Google Gemini の選択肢例: `gemini-1.5-flash`(既定)、`gemini-1.5-pro`、`gemini-2.0-flash`
+    - OpenAI の選択肢例: `gpt-5.4-nano`、`gpt-5.6-luna`(既定)、`gpt-5.4-mini`、`gpt-5.4`、`gpt-5.6-terra`、`gpt-5.6-sol`(軽量→バランス→フラッグシップの順)
+    - Anthropic の選択肢例: `claude-haiku-4-5`(既定・軽量)、`claude-sonnet-5`(バランス)、`claude-opus-5`(フラッグシップ)
+    - Google Gemini の選択肢例: `gemini-3.1-flash-lite`、`gemini-3.5-flash-lite`(既定)、`gemini-3.5-flash`、`gemini-3.6-flash`、`gemini-3.1-pro-preview`(軽量→バランス→フラッグシップの順)
     - 上記の一覧は実装時点の代表例であり、各プロバイダーの新モデルリリースに合わせて更新する保守対象とする。一覧はコード上の定数として1箇所にまとめ、`docs/specs/002-*.md` 実装時に確定させる。
     - 「カスタム」選択時のみモデル名のテキスト入力欄を表示する。
 - 詳細設定: 最大リトライ回数(既定 3)、temperature(既定 1.0、0.0〜2.0)。

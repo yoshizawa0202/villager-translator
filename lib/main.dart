@@ -1,21 +1,44 @@
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:provider/provider.dart';
 
-void main() {
-  runApp(const VillagerTranslatorApp());
+import 'features/settings/settings_controller.dart';
+import 'features/settings/settings_page.dart';
+import 'infrastructure/settings/secure_api_key_store.dart';
+import 'infrastructure/settings/settings_repository.dart';
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  final supportDirectory = await getApplicationSupportDirectory();
+  final settingsController = SettingsController(
+    repository: SettingsRepository.forApplicationSupportDirectory(
+      supportDirectory,
+    ),
+    apiKeyStore: SecureApiKeyStore(),
+  );
+  await settingsController.load();
+
+  runApp(VillagerTranslatorApp(settingsController: settingsController));
 }
 
 class VillagerTranslatorApp extends StatelessWidget {
-  const VillagerTranslatorApp({super.key});
+  const VillagerTranslatorApp({super.key, required this.settingsController});
+
+  final SettingsController settingsController;
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Villager Translator',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF2E7D32)),
-        useMaterial3: true,
+    return ChangeNotifierProvider<SettingsController>.value(
+      value: settingsController,
+      child: MaterialApp(
+        title: 'Villager Translator',
+        theme: ThemeData(
+          colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF2E7D32)),
+          useMaterial3: true,
+        ),
+        home: const ProjectHomePage(),
       ),
-      home: const ProjectHomePage(),
     );
   }
 }
@@ -26,7 +49,21 @@ class ProjectHomePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Villager Translator')),
+      appBar: AppBar(
+        title: const Text('Villager Translator'),
+        actions: [
+          IconButton(
+            key: const Key('openSettingsButton'),
+            icon: const Icon(Icons.settings),
+            tooltip: '設定',
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (context) => const SettingsPage()),
+              );
+            },
+          ),
+        ],
+      ),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 680),

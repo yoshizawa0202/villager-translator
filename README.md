@@ -40,6 +40,8 @@ flutter test
 flutter run -d windows
 ```
 
+widget test が停止したり `pumpAndSettle()` が終わらないときの調査メモは [docs/widget-test-troubleshooting.md](docs/widget-test-troubleshooting.md) を参照してください。
+
 ## Windows 実行ファイルのビルド
 
 ```powershell
