@@ -28,5 +28,35 @@ void main() {
       ]);
       expect(result, {'greeting': 'こんにちは'});
     });
+
+    test('key: value 形式で復元できない場合、Markdown装飾やヘッダー行を除去した行位置ベースの'
+        'フォールバックで元のキー数と一致すれば正しく対応付けられる', () {
+      const rawText = '''
+## Translation Result
+```
+こんにちは
+さようなら
+```
+''';
+
+      final result = parseTranslationResponse(rawText, [
+        'greeting',
+        'farewell',
+      ]);
+
+      expect(result, {'greeting': 'こんにちは', 'farewell': 'さようなら'});
+    });
+
+    test('フォールバック後も行数とキー数が一致しない場合は FormatException を投げる', () {
+      const rawText = '''
+## Translation Result
+これは1行しかありません
+''';
+
+      expect(
+        () => parseTranslationResponse(rawText, ['greeting', 'farewell']),
+        throwsFormatException,
+      );
+    });
   });
 }
