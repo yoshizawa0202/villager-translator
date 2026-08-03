@@ -1,9 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:villager_translator/domain/modtranslation/lang_codec.dart';
 import 'package:villager_translator/domain/modtranslation/mod_info.dart';
 import 'package:villager_translator/domain/modtranslation/mod_scan_entry.dart';
 import 'package:villager_translator/domain/modtranslation/mod_translation_service.dart';
 import 'package:villager_translator/domain/settings/existing_translation_policy.dart';
+import 'package:villager_translator/domain/translation/lang_codec.dart';
 
 ModScanEntry _entry(
   String modId,

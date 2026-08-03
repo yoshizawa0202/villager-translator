@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'lang_codec.dart';
+import '../translation/lang_codec.dart';
 import 'mod_translation_service.dart';
 
 /// `pack.mcmeta` の `pack_format`(feature-spec.md §6.2)。

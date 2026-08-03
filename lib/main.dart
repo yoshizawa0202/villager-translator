@@ -3,6 +3,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 
 import 'features/mod_translation/mod_translation_page.dart';
+import 'features/quest_translation/quest_translation_page.dart';
 import 'features/settings/settings_controller.dart';
 import 'features/settings/settings_page.dart';
 import 'infrastructure/settings/secure_api_key_store.dart';
@@ -87,7 +88,14 @@ class ProjectHomePage extends StatelessWidget {
                 SizedBox(height: 24),
                 Chip(label: Text('Windows デスクトップ版')),
                 SizedBox(height: 24),
-                _OpenModTranslationButton(),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _OpenModTranslationButton(),
+                    SizedBox(width: 12),
+                    _OpenQuestTranslationButton(),
+                  ],
+                ),
               ],
             ),
           ),
@@ -110,6 +118,25 @@ class _OpenModTranslationButton extends StatelessWidget {
         );
       },
       child: const Text('MOD 翻訳'),
+    );
+  }
+}
+
+class _OpenQuestTranslationButton extends StatelessWidget {
+  const _OpenQuestTranslationButton();
+
+  @override
+  Widget build(BuildContext context) {
+    return ElevatedButton(
+      key: const Key('openQuestTranslationButton'),
+      onPressed: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => const QuestTranslationPage(),
+          ),
+        );
+      },
+      child: const Text('クエスト翻訳'),
     );
   }
 }

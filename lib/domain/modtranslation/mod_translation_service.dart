@@ -1,7 +1,7 @@
 import '../settings/existing_translation_policy.dart';
 import '../translation/diff_update.dart';
+import '../translation/lang_codec.dart';
 import '../translation/retry_policy.dart';
-import 'lang_codec.dart';
 import 'mod_scan_entry.dart';
 import 'mod_scanner.dart';
 

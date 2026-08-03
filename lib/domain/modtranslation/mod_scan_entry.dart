@@ -1,4 +1,4 @@
-import 'lang_codec.dart';
+import '../translation/lang_codec.dart';
 import 'mod_info.dart';
 
 /// スキャン対象一覧に含まれる MOD 1件分の情報(feature-spec.md §6.1)。

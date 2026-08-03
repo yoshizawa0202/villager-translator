@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:villager_translator/domain/modtranslation/lang_codec.dart';
+import 'package:villager_translator/domain/translation/lang_codec.dart';
 
 void main() {
   group('decodeLangJson', () {

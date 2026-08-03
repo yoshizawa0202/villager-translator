@@ -2,9 +2,9 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:villager_translator/domain/modtranslation/jar_contents.dart';
-import 'package:villager_translator/domain/modtranslation/lang_codec.dart';
 import 'package:villager_translator/domain/modtranslation/mod_scan_entry.dart';
 import 'package:villager_translator/domain/modtranslation/mod_scanner.dart';
+import 'package:villager_translator/domain/translation/lang_codec.dart';
 
 JarContents _jar(Map<String, String> textEntries) {
   return {

@@ -4,12 +4,12 @@ import 'package:path/path.dart' as p;
 
 import '../../domain/llm/llm_adapter_config.dart';
 import '../../domain/modtranslation/jar_contents.dart';
-import '../../domain/modtranslation/lang_codec.dart';
 import '../../domain/modtranslation/mod_scan_entry.dart';
 import '../../domain/modtranslation/mod_translation_service.dart';
 import '../../domain/modtranslation/resource_pack_builder.dart';
 import '../../domain/settings/app_settings.dart';
 import '../../domain/translation/chunker.dart';
+import '../../domain/translation/lang_codec.dart';
 import '../llm/llm_adapter_factory.dart';
 import 'jar_reader.dart';
 import 'mod_directory_scanner.dart';

@@ -1,5 +1,5 @@
 import 'jar_contents.dart';
-import 'lang_codec.dart';
+import '../translation/lang_codec.dart';
 import 'mod_info_extractor.dart';
 import 'mod_scan_entry.dart';
 

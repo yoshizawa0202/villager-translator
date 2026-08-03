@@ -2,47 +2,46 @@ import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../domain/translation/lang_codec.dart';
-import '../../infrastructure/modtranslation/mod_translation_orchestrator.dart';
+import '../../infrastructure/questtranslation/quest_translation_orchestrator.dart';
 import '../settings/settings_controller.dart';
-import 'mod_translation_controller.dart';
+import 'quest_translation_controller.dart';
 
-/// MOD タブ画面(feature-spec.md §3.1〜3.2、§6)。
+/// クエストタブ画面(feature-spec.md §7)。
 ///
 /// プロファイルディレクトリ選択・スキャン・対象言語選択・テーブル
 /// (チェックボックス・ソート・部分一致検索)・翻訳実行を提供する。
-class ModTranslationPage extends StatelessWidget {
-  const ModTranslationPage({super.key, this.controller});
+class QuestTranslationPage extends StatelessWidget {
+  const QuestTranslationPage({super.key, this.controller});
 
   /// テスト用にコントローラーを直接注入するためのフック。
   /// 通常利用時は `null` のままで、画面が自前で生成する。
-  final ModTranslationController? controller;
+  final QuestTranslationController? controller;
 
   @override
   Widget build(BuildContext context) {
     if (controller != null) {
-      return ChangeNotifierProvider<ModTranslationController>.value(
+      return ChangeNotifierProvider<QuestTranslationController>.value(
         value: controller!,
-        child: const _ModTranslationView(),
+        child: const _QuestTranslationView(),
       );
     }
-    return ChangeNotifierProvider<ModTranslationController>(
-      create: (context) => ModTranslationController(
+    return ChangeNotifierProvider<QuestTranslationController>(
+      create: (context) => QuestTranslationController(
         settingsController: context.read<SettingsController>(),
       ),
-      child: const _ModTranslationView(),
+      child: const _QuestTranslationView(),
     );
   }
 }
 
-class _ModTranslationView extends StatefulWidget {
-  const _ModTranslationView();
+class _QuestTranslationView extends StatefulWidget {
+  const _QuestTranslationView();
 
   @override
-  State<_ModTranslationView> createState() => _ModTranslationViewState();
+  State<_QuestTranslationView> createState() => _QuestTranslationViewState();
 }
 
-class _ModTranslationViewState extends State<_ModTranslationView> {
+class _QuestTranslationViewState extends State<_QuestTranslationView> {
   final _directoryController = TextEditingController();
 
   @override
@@ -53,19 +52,19 @@ class _ModTranslationViewState extends State<_ModTranslationView> {
 
   @override
   Widget build(BuildContext context) {
-    final controller = context.watch<ModTranslationController>();
+    final controller = context.watch<QuestTranslationController>();
     final settings = context.watch<SettingsController>().settings;
 
     final canScan =
         controller.profileDirectory != null &&
-        controller.state != ModTabState.scanning &&
-        controller.state != ModTabState.translating;
+        controller.state != QuestTabState.scanning &&
+        controller.state != QuestTabState.translating;
     final canTranslate =
-        controller.state == ModTabState.scanned &&
-        controller.selectedModIds.isNotEmpty;
+        controller.state == QuestTabState.scanned &&
+        controller.selectedPaths.isNotEmpty;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('MOD 翻訳')),
+      appBar: AppBar(title: const Text('クエスト翻訳')),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -97,9 +96,7 @@ class _ModTranslationViewState extends State<_ModTranslationView> {
                 Expanded(
                   child: TextField(
                     key: const Key('searchField'),
-                    decoration: const InputDecoration(
-                      labelText: '検索(MOD 名・ID の部分一致)',
-                    ),
+                    decoration: const InputDecoration(labelText: '検索(パスの部分一致)'),
                     onChanged: controller.setSearchQuery,
                   ),
                 ),
@@ -122,7 +119,7 @@ class _ModTranslationViewState extends State<_ModTranslationView> {
                 const SizedBox(width: 16),
                 Text(
                   _stateLabel(controller.state),
-                  key: const Key('modTabStateLabel'),
+                  key: const Key('questTabStateLabel'),
                 ),
               ],
             ),
@@ -130,7 +127,7 @@ class _ModTranslationViewState extends State<_ModTranslationView> {
               const SizedBox(height: 8),
               Text(
                 controller.errorMessage!,
-                key: const Key('modTabErrorMessage'),
+                key: const Key('questTabErrorMessage'),
                 style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
             ],
@@ -139,24 +136,24 @@ class _ModTranslationViewState extends State<_ModTranslationView> {
               _ResultSummary(result: controller.lastResult!),
             ],
             const SizedBox(height: 16),
-            Expanded(child: _ModTable(controller: controller)),
+            Expanded(child: _QuestTable(controller: controller)),
           ],
         ),
       ),
     );
   }
 
-  String _stateLabel(ModTabState state) {
+  String _stateLabel(QuestTabState state) {
     switch (state) {
-      case ModTabState.notSelected:
+      case QuestTabState.notSelected:
         return '未選択';
-      case ModTabState.scanning:
+      case QuestTabState.scanning:
         return 'スキャン中...';
-      case ModTabState.scanned:
+      case QuestTabState.scanned:
         return 'スキャン完了';
-      case ModTabState.translating:
+      case QuestTabState.translating:
         return '翻訳中...';
-      case ModTabState.completed:
+      case QuestTabState.completed:
         return '完了';
     }
   }
@@ -169,7 +166,7 @@ class _ProfileDirectoryRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final controller = context.read<ModTranslationController>();
+    final controller = context.read<QuestTranslationController>();
 
     return Row(
       children: [
@@ -201,32 +198,28 @@ class _ProfileDirectoryRow extends StatelessWidget {
 class _ResultSummary extends StatelessWidget {
   const _ResultSummary({required this.result});
 
-  final ModTranslateAndPackResult result;
+  final QuestTranslateAndWriteResult result;
 
   @override
   Widget build(BuildContext context) {
     final r = result.translationResult;
-    final outputText = result.packDirectory != null
-        ? '出力先: ${result.packDirectory!.path}'
-        : 'リソースパックは作成されませんでした(全対象がスキップ)';
 
     return Text(
-      '翻訳: ${r.translatedModIds.length} 件 / スキップ: ${r.skippedModIds.length} 件 / $outputText',
+      '翻訳: ${r.translatedPaths.length} 件 / スキップ: ${r.skippedPaths.length} 件 / '
+      '出力ファイル数: ${result.writtenFiles.length}',
       key: const Key('translationResultSummary'),
     );
   }
 }
 
-class _ModTable extends StatelessWidget {
-  const _ModTable({required this.controller});
+class _QuestTable extends StatelessWidget {
+  const _QuestTable({required this.controller});
 
-  final ModTranslationController controller;
+  final QuestTranslationController controller;
 
   static const _sortableColumns = [
-    ModTableSortColumn.name,
-    ModTableSortColumn.id,
-    ModTableSortColumn.path,
-    ModTableSortColumn.format,
+    QuestTableSortColumn.path,
+    QuestTableSortColumn.format,
   ];
 
   @override
@@ -237,62 +230,58 @@ class _ModTable extends StatelessWidget {
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: DataTable(
-          key: const Key('modTable'),
+          key: const Key('questTable'),
           sortColumnIndex: _sortableColumns.indexOf(controller.sortColumn),
           sortAscending: controller.sortAscending,
           columns: [
             DataColumn(
-              label: const Text('MOD 名'),
-              onSort: (_, _) =>
-                  controller.setSortColumn(ModTableSortColumn.name),
-            ),
-            DataColumn(
-              label: const Text('MOD ID'),
-              onSort: (_, _) => controller.setSortColumn(ModTableSortColumn.id),
-            ),
-            DataColumn(
               label: const Text('パス'),
               onSort: (_, _) =>
-                  controller.setSortColumn(ModTableSortColumn.path),
+                  controller.setSortColumn(QuestTableSortColumn.path),
             ),
             DataColumn(
               label: const Text('形式'),
               onSort: (_, _) =>
-                  controller.setSortColumn(ModTableSortColumn.format),
+                  controller.setSortColumn(QuestTableSortColumn.format),
             ),
-            const DataColumn(label: Text('既存翻訳')),
           ],
           rows: entries.map((entry) {
-            final selected = controller.selectedModIds.contains(
-              entry.modInfo.id,
+            final selected = controller.selectedPaths.contains(
+              entry.relativePath,
             );
             return DataRow(
-              key: ValueKey('modRow_${entry.modInfo.id}'),
+              key: ValueKey('questRow_${entry.relativePath}'),
               selected: selected,
-              onSelectChanged: (value) => controller.toggleModSelection(
-                entry.modInfo.id,
+              onSelectChanged: (value) => controller.toggleQuestSelection(
+                entry.relativePath,
                 value ?? false,
               ),
               cells: [
                 DataCell(
                   KeyedSubtree(
-                    key: ValueKey('modRow_${entry.modInfo.id}'),
-                    child: Text(entry.modInfo.name),
+                    key: ValueKey('questRow_${entry.relativePath}'),
+                    child: Text(entry.relativePath),
                   ),
                 ),
-                DataCell(Text(entry.modInfo.id)),
-                DataCell(Text(entry.jarRelativePath)),
-                DataCell(
-                  Text(entry.langFormat == LangFormat.json ? 'JSON' : 'LANG'),
-                ),
-                DataCell(
-                  Chip(label: Text(entry.hasExistingTranslation ? '既存' : '新規')),
-                ),
+                DataCell(Text(_formatLabel(entry.format))),
               ],
             );
           }).toList(),
         ),
       ),
     );
+  }
+
+  String _formatLabel(QuestFormat format) {
+    switch (format) {
+      case QuestFormat.ftbQuestsKubejsLang:
+        return 'FTB Quests (KubeJS)';
+      case QuestFormat.ftbQuestsSnbt:
+        return 'FTB Quests (SNBT)';
+      case QuestFormat.betterQuestingStandard:
+        return 'Better Quests (標準)';
+      case QuestFormat.betterQuestingDirect:
+        return 'Better Quests (直接)';
+    }
   }
 }
