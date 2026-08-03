@@ -41,12 +41,26 @@ class SettingsRepository {
 
   /// 設定を保存する。一時ファイルへ書き込んでからリネームすることで、
   /// 書き込み途中でのプロセス終了による設定ファイルの破損を防ぐ(原子的書き込み)。
+  ///
+  /// Windows では宛先が既に存在すると `rename` が失敗するため、既存ファイルを
+  /// 一旦バックアップへ退避してからリネームし、成功後にバックアップを削除する。
   Future<void> save(AppSettings settings) async {
     await settingsFile.parent.create(recursive: true);
 
     final tempFile = File('${settingsFile.path}.tmp');
+    final backupFile = File('${settingsFile.path}.bak');
     final encoder = const JsonEncoder.withIndent('  ');
     await tempFile.writeAsString(encoder.convert(settings.toJson()));
+
+    if (await backupFile.exists()) {
+      await backupFile.delete();
+    }
+    if (await settingsFile.exists()) {
+      await settingsFile.rename(backupFile.path);
+    }
     await tempFile.rename(settingsFile.path);
+    if (await backupFile.exists()) {
+      await backupFile.delete();
+    }
   }
 }
