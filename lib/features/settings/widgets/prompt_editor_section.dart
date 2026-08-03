@@ -35,6 +35,16 @@ class _PromptEditorSectionState extends State<PromptEditorSection> {
 
   @override
   Widget build(BuildContext context) {
+    final controller = context.watch<SettingsController>();
+    final llm = controller.settings.llm;
+
+    if (_systemController.text != llm.systemPrompt) {
+      _systemController.text = llm.systemPrompt;
+    }
+    if (_userController.text != llm.userPrompt) {
+      _userController.text = llm.userPrompt;
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

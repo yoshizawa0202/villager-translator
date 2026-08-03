@@ -39,6 +39,18 @@ class _LlmAdvancedSettingsSectionState
 
   @override
   Widget build(BuildContext context) {
+    final controller = context.watch<SettingsController>();
+    final llm = controller.settings.llm;
+
+    final maxRetriesText = llm.maxRetries.toString();
+    if (_maxRetriesController.text != maxRetriesText) {
+      _maxRetriesController.text = maxRetriesText;
+    }
+    final temperatureText = llm.temperature.toString();
+    if (_temperatureController.text != temperatureText) {
+      _temperatureController.text = temperatureText;
+    }
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

@@ -60,6 +60,26 @@ class _TranslationSettingsSectionState
     final controller = context.watch<SettingsController>();
     final t = controller.settings.translation;
 
+    final maxTokensText = t.maxTokensPerChunk.toString();
+    if (_maxTokensController.text != maxTokensText) {
+      _maxTokensController.text = maxTokensText;
+    }
+    if (_resourcePackNameController.text != t.resourcePackName) {
+      _resourcePackNameController.text = t.resourcePackName;
+    }
+    final modChunkSizeText = t.modChunkSize.toString();
+    if (_modChunkSizeController.text != modChunkSizeText) {
+      _modChunkSizeController.text = modChunkSizeText;
+    }
+    final questChunkSizeText = t.questChunkSize.toString();
+    if (_questChunkSizeController.text != questChunkSizeText) {
+      _questChunkSizeController.text = questChunkSizeText;
+    }
+    final guidebookChunkSizeText = t.guidebookChunkSize.toString();
+    if (_guidebookChunkSizeController.text != guidebookChunkSizeText) {
+      _guidebookChunkSizeController.text = guidebookChunkSizeText;
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

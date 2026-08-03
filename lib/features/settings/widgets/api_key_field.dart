@@ -100,8 +100,10 @@ class _ApiKeyFieldState extends State<ApiKeyField> {
   Future<void> _testConnection(BuildContext context, LlmProvider provider) async {
     final controller = context.read<SettingsController>();
     final candidateApiKey = _textController.text;
-    await controller.setApiKey(provider, candidateApiKey);
     final isValid = await controller.testApiKey(provider, candidateApiKey);
+    if (isValid) {
+      await controller.setApiKey(provider, candidateApiKey);
+    }
     if (!mounted) return;
     setState(() {
       _testResultMessage = isValid ? '接続に成功しました' : '接続に失敗しました';
