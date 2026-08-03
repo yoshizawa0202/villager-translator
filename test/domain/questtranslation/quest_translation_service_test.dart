@@ -46,9 +46,11 @@ void main() {
     });
 
     test('JSON/LANG はスキップ方針で既存があればスキップされる(受け入れ条件10)', () async {
-      final entry = _jsonEntry('config/betterquesting/DefaultQuests.lang', {
-        'a': '1',
-      }, format: QuestFormat.betterQuestingDirect);
+      final entry = _jsonEntry(
+        'config/betterquesting/DefaultQuests.lang',
+        {'a': '1'},
+        format: QuestFormat.betterQuestingDirect,
+      );
 
       final result = await translateQuestEntries(
         selectedEntries: [entry],
@@ -63,10 +65,11 @@ void main() {
     });
 
     test('JSON/LANG は全て再翻訳方針で既存があっても全キー翻訳される(受け入れ条件10)', () async {
-      final entry = _jsonEntry('kubejs/assets/kubejs/lang/en_us.json', {
-        'a': '1',
-        'b': '2',
-      }, format: QuestFormat.ftbQuestsKubejsLang);
+      final entry = _jsonEntry(
+        'kubejs/assets/kubejs/lang/en_us.json',
+        {'a': '1', 'b': '2'},
+        format: QuestFormat.ftbQuestsKubejsLang,
+      );
 
       final result = await translateQuestEntries(
         selectedEntries: [entry],
@@ -79,30 +82,27 @@ void main() {
       expect(result.outputs.single.entries, {'a': '[訳]1', 'b': '[訳]2'});
     });
 
-    test(
-      'SNBT は既存翻訳判定が不能なため、方針設定に関わらず常に全文再翻訳される(受け入れ条件11)',
-      () async {
-        final entry = _snbtEntry('config/ftbquests/quests/chapter.snbt', {
-          '0': 'Title',
-        });
+    test('SNBT は既存翻訳判定が不能なため、方針設定に関わらず常に全文再翻訳される(受け入れ条件11)', () async {
+      final entry = _snbtEntry('config/ftbquests/quests/chapter.snbt', {
+        '0': 'Title',
+      });
 
-        var loaderCalled = false;
-        final result = await translateQuestEntries(
-          selectedEntries: [entry],
-          policy: ExistingTranslationPolicy.skip,
-          loadExistingTargetEntries: (_) async {
-            loaderCalled = true;
-            return {'0': '既存があってもSNBTでは使われない'};
-          },
-          translateChunk: (chunk) async =>
-              chunk.map((k, v) => MapEntry(k, '[訳]$v')),
-        );
+      var loaderCalled = false;
+      final result = await translateQuestEntries(
+        selectedEntries: [entry],
+        policy: ExistingTranslationPolicy.skip,
+        loadExistingTargetEntries: (_) async {
+          loaderCalled = true;
+          return {'0': '既存があってもSNBTでは使われない'};
+        },
+        translateChunk: (chunk) async =>
+            chunk.map((k, v) => MapEntry(k, '[訳]$v')),
+      );
 
-        expect(loaderCalled, isFalse, reason: 'SNBT では既存確認を行わない');
-        expect(result.translatedPaths, [entry.relativePath]);
-        expect(result.outputs.single.entries, {'0': '[訳]Title'});
-      },
-    );
+      expect(loaderCalled, isFalse, reason: 'SNBT では既存確認を行わない');
+      expect(result.translatedPaths, [entry.relativePath]);
+      expect(result.outputs.single.entries, {'0': '[訳]Title'});
+    });
 
     test('ファイル全体が1つの翻訳単位として渡され、キー単位に分割されない(受け入れ条件12)', () async {
       final entry = _jsonEntry('resources/betterquesting/lang/en_us.json', {

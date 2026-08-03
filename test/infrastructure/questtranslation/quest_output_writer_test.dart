@@ -9,7 +9,9 @@ void main() {
   late Directory tempDir;
 
   setUp(() async {
-    tempDir = await Directory.systemTemp.createTemp('quest_output_writer_test_');
+    tempDir = await Directory.systemTemp.createTemp(
+      'quest_output_writer_test_',
+    );
   });
 
   tearDown(() async {
@@ -36,13 +38,27 @@ void main() {
     expect(written, hasLength(2));
     expect(
       await File(
-        p.joinAll([tempDir.path, 'kubejs', 'assets', 'kubejs', 'lang', 'ja_jp.json']),
+        p.joinAll([
+          tempDir.path,
+          'kubejs',
+          'assets',
+          'kubejs',
+          'lang',
+          'ja_jp.json',
+        ]),
       ).readAsString(),
       '{"a":"1"}',
     );
     expect(
       await File(
-        p.joinAll([tempDir.path, 'kubejs', 'assets', 'ftbquests', 'lang', 'ja_jp.json']),
+        p.joinAll([
+          tempDir.path,
+          'kubejs',
+          'assets',
+          'ftbquests',
+          'lang',
+          'ja_jp.json',
+        ]),
       ).readAsString(),
       '{"a":"1"}',
     );
@@ -68,7 +84,9 @@ void main() {
     expect(await original.readAsString(), 'title: "Translated"');
     // 言語サフィックス付きの別ファイルは作られない。
     expect(
-      await Directory(p.join(tempDir.path, 'config', 'ftbquests', 'quests')).list().length,
+      await Directory(
+        p.join(tempDir.path, 'config', 'ftbquests', 'quests'),
+      ).list().length,
       1,
     );
   });

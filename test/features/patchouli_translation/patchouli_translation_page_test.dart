@@ -7,13 +7,14 @@ import 'package:provider/provider.dart';
 import 'package:villager_translator/domain/llm/llm_adapter.dart';
 import 'package:villager_translator/domain/llm/llm_adapter_config.dart';
 import 'package:villager_translator/domain/llm/llm_provider.dart';
-import 'package:villager_translator/features/quest_translation/quest_translation_controller.dart';
-import 'package:villager_translator/features/quest_translation/quest_translation_page.dart';
+import 'package:villager_translator/features/patchouli_translation/patchouli_translation_controller.dart';
+import 'package:villager_translator/features/patchouli_translation/patchouli_translation_page.dart';
 import 'package:villager_translator/features/settings/settings_controller.dart';
 import 'package:villager_translator/infrastructure/llm/llm_adapter_factory.dart';
 import 'package:villager_translator/infrastructure/llm/mock_llm_adapter.dart';
-import 'package:villager_translator/infrastructure/questtranslation/quest_translation_orchestrator.dart';
+import 'package:villager_translator/infrastructure/patchoulitranslation/patchouli_translation_orchestrator.dart';
 
+import '../../test_support/fake_jar_builder.dart';
 import '../../test_support/in_memory_api_key_store.dart';
 import '../../test_support/in_memory_settings_repository.dart';
 
@@ -23,27 +24,21 @@ class _FakeAdapterFactory implements LlmAdapterFactory {
       const MockLlmAdapter();
 }
 
-Future<void> _writeFile(String path, String content) async {
-  final file = File(path);
-  await file.parent.create(recursive: true);
-  await file.writeAsString(content);
-}
-
 void main() {
   late Directory tempDir;
 
   setUp(() async {
     tempDir = await Directory.systemTemp.createTemp(
-      'quest_translation_page_test_',
+      'patchouli_translation_page_test_',
     );
-    await _writeFile(
-      p.join(tempDir.path, 'resources', 'betterquesting', 'lang', 'en_us.json'),
-      '{"quest.a": "Quest A"}',
-    );
-    await _writeFile(
-      p.join(tempDir.path, 'config', 'betterquesting', 'DefaultQuests.lang'),
-      'quest.b=Quest B',
-    );
+    await writeFakeJar(File(p.join(tempDir.path, 'mods', 'amod.jar')), {
+      'assets/amod/patchouli_books/guide/en_us/book.json':
+          '{"name": "A Guide"}',
+    });
+    await writeFakeJar(File(p.join(tempDir.path, 'mods', 'zmod.jar')), {
+      'assets/zmod/patchouli_books/guide/en_us/book.json':
+          '{"name": "Z Guide"}',
+    });
   });
 
   tearDown(() async {
@@ -52,7 +47,7 @@ void main() {
     }
   });
 
-  Future<QuestTranslationController> pumpPage(WidgetTester tester) async {
+  Future<PatchouliTranslationController> pumpPage(WidgetTester tester) async {
     final settingsController = SettingsController(
       repository: InMemorySettingsRepository(),
       apiKeyStore: InMemoryApiKeyStore(),
@@ -60,9 +55,9 @@ void main() {
     await settingsController.load();
     await settingsController.setApiKey(LlmProvider.openai, 'test-key');
 
-    final questController = QuestTranslationController(
+    final patchouliController = PatchouliTranslationController(
       settingsController: settingsController,
-      orchestrator: QuestTranslationOrchestrator(
+      orchestrator: PatchouliTranslationOrchestrator(
         adapterFactory: _FakeAdapterFactory(),
       ),
     );
@@ -75,13 +70,13 @@ void main() {
           ),
         ],
         child: MaterialApp(
-          home: QuestTranslationPage(controller: questController),
+          home: PatchouliTranslationPage(controller: patchouliController),
         ),
       ),
     );
     await tester.pumpAndSettle();
 
-    return questController;
+    return patchouliController;
   }
 
   testWidgets('未選択→スキャン完了→翻訳完了の状態遷移と、テーブルのチェックボックス・検索が機能する', (tester) async {
@@ -102,56 +97,32 @@ void main() {
     await tester.pumpAndSettle();
     expect(controller.profileDirectory!.path, tempDir.path);
 
+    final scanButtonAfter = tester.widget<ElevatedButton>(
+      find.byKey(const Key('scanButton')),
+    );
+    expect(scanButtonAfter.onPressed, isNotNull);
+
     await tester.runAsync(() => controller.scan());
     await tester.pumpAndSettle();
 
     expect(find.text('スキャン完了'), findsOneWidget);
-    expect(
-      find.byKey(
-        const Key('questRow_resources/betterquesting/lang/en_us.json'),
-      ),
-      findsOneWidget,
-    );
-    expect(
-      find.byKey(
-        const Key('questRow_config/betterquesting/DefaultQuests.lang'),
-      ),
-      findsOneWidget,
-    );
-    expect(controller.selectedPaths, {
-      'resources/betterquesting/lang/en_us.json',
-      'config/betterquesting/DefaultQuests.lang',
-    });
+    expect(find.byKey(const Key('patchouliRow_amod:guide')), findsOneWidget);
+    expect(find.byKey(const Key('patchouliRow_zmod:guide')), findsOneWidget);
+    expect(controller.selectedBookKeys, {'amod:guide', 'zmod:guide'});
 
-    // 部分一致検索。
-    await tester.enterText(find.byKey(const Key('searchField')), 'Default');
+    // 部分一致検索: "zmod" で絞り込む。
+    await tester.enterText(find.byKey(const Key('searchField')), 'zmod');
     await tester.pumpAndSettle();
-    expect(
-      find.byKey(
-        const Key('questRow_resources/betterquesting/lang/en_us.json'),
-      ),
-      findsNothing,
-    );
-    expect(
-      find.byKey(
-        const Key('questRow_config/betterquesting/DefaultQuests.lang'),
-      ),
-      findsOneWidget,
-    );
+    expect(find.byKey(const Key('patchouliRow_amod:guide')), findsNothing);
+    expect(find.byKey(const Key('patchouliRow_zmod:guide')), findsOneWidget);
 
     await tester.enterText(find.byKey(const Key('searchField')), '');
     await tester.pumpAndSettle();
 
-    // チェックボックス列: DefaultQuests.lang の選択を解除する。
-    await tester.tap(
-      find.byKey(
-        const Key('questRow_config/betterquesting/DefaultQuests.lang'),
-      ),
-    );
+    // チェックボックス列: zmod:guide の選択を解除する。
+    await tester.tap(find.byKey(const Key('patchouliRow_zmod:guide')));
     await tester.pumpAndSettle();
-    expect(controller.selectedPaths, {
-      'resources/betterquesting/lang/en_us.json',
-    });
+    expect(controller.selectedBookKeys, {'amod:guide'});
 
     final translateButtonAfter = tester.widget<ElevatedButton>(
       find.byKey(const Key('translateButton')),
@@ -163,8 +134,8 @@ void main() {
 
     expect(find.text('完了'), findsOneWidget);
     expect(find.byKey(const Key('translationResultSummary')), findsOneWidget);
-    expect(controller.lastResult!.translationResult.translatedPaths, [
-      'resources/betterquesting/lang/en_us.json',
+    expect(controller.lastResult!.translationResult.translatedBookKeys, [
+      'amod:guide',
     ]);
   });
 }

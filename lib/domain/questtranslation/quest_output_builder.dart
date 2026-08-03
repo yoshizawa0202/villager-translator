@@ -66,9 +66,7 @@ List<QuestOutputFile> buildQuestOutputFiles(
 
     case QuestFormat.betterQuestingStandard:
       final dir = _relativePath.dirname(entry.relativePath);
-      final stem = _relativePath.basenameWithoutExtension(
-        entry.relativePath,
-      );
+      final stem = _relativePath.basenameWithoutExtension(entry.relativePath);
       return [
         QuestOutputFile(
           relativePath: _relativePath.join(dir, '$stem.$targetLanguageId.json'),
@@ -105,9 +103,7 @@ String? existingTranslationCheckPath(
       return 'kubejs/assets/kubejs/lang/$targetLanguageId.json';
     case QuestFormat.betterQuestingStandard:
       final dir = _relativePath.dirname(entry.relativePath);
-      final stem = _relativePath.basenameWithoutExtension(
-        entry.relativePath,
-      );
+      final stem = _relativePath.basenameWithoutExtension(entry.relativePath);
       return _relativePath.join(dir, '$stem.$targetLanguageId.json');
     case QuestFormat.betterQuestingDirect:
       final dir = _relativePath.dirname(entry.relativePath);

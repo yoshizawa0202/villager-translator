@@ -3,6 +3,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 
 import 'features/mod_translation/mod_translation_page.dart';
+import 'features/patchouli_translation/patchouli_translation_page.dart';
 import 'features/quest_translation/quest_translation_page.dart';
 import 'features/settings/settings_controller.dart';
 import 'features/settings/settings_page.dart';
@@ -94,6 +95,8 @@ class ProjectHomePage extends StatelessWidget {
                     _OpenModTranslationButton(),
                     SizedBox(width: 12),
                     _OpenQuestTranslationButton(),
+                    SizedBox(width: 12),
+                    _OpenPatchouliTranslationButton(),
                   ],
                 ),
               ],
@@ -131,12 +134,29 @@ class _OpenQuestTranslationButton extends StatelessWidget {
       key: const Key('openQuestTranslationButton'),
       onPressed: () {
         Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (context) => const QuestTranslationPage(),
-          ),
+          MaterialPageRoute(builder: (context) => const QuestTranslationPage()),
         );
       },
       child: const Text('クエスト翻訳'),
+    );
+  }
+}
+
+class _OpenPatchouliTranslationButton extends StatelessWidget {
+  const _OpenPatchouliTranslationButton();
+
+  @override
+  Widget build(BuildContext context) {
+    return ElevatedButton(
+      key: const Key('openPatchouliTranslationButton'),
+      onPressed: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => const PatchouliTranslationPage(),
+          ),
+        );
+      },
+      child: const Text('Patchouli 翻訳'),
     );
   }
 }

@@ -28,7 +28,14 @@ void main() {
     'kubejs/assets/kubejs/lang/en_us.json があれば、翻訳済みパターンを除く *.json が KubeJS lang として検出される(受け入れ条件1)',
     () async {
       await _writeFile(
-        p.join(tempDir.path, 'kubejs', 'assets', 'kubejs', 'lang', 'en_us.json'),
+        p.join(
+          tempDir.path,
+          'kubejs',
+          'assets',
+          'kubejs',
+          'lang',
+          'en_us.json',
+        ),
         '{"quest.a": "Quest A"}',
       );
       await _writeFile(
@@ -160,14 +167,11 @@ void main() {
 
     final entries = await scanQuestsDirectory(profileDirectory: tempDir);
 
-    expect(
-      entries.map((e) => e.format).toSet(),
-      {
-        QuestFormat.ftbQuestsKubejsLang,
-        QuestFormat.betterQuestingStandard,
-        QuestFormat.betterQuestingDirect,
-      },
-    );
+    expect(entries.map((e) => e.format).toSet(), {
+      QuestFormat.ftbQuestsKubejsLang,
+      QuestFormat.betterQuestingStandard,
+      QuestFormat.betterQuestingDirect,
+    });
   });
 
   test('何も存在しない場合は空リストを返す', () async {

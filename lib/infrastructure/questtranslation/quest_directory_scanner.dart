@@ -93,12 +93,12 @@ Future<List<QuestScanEntry>> _scanSnbtDirectory(
 
   final snbtFiles =
       await root
-          .list(recursive: true)
-          .where(
-            (e) => e is File && p.extension(e.path).toLowerCase() == '.snbt',
-          )
-          .cast<File>()
-          .toList()
+            .list(recursive: true)
+            .where(
+              (e) => e is File && p.extension(e.path).toLowerCase() == '.snbt',
+            )
+            .cast<File>()
+            .toList()
         ..sort((a, b) => a.path.compareTo(b.path));
 
   final entries = <QuestScanEntry>[];
@@ -167,7 +167,12 @@ Future<QuestScanEntry?> _scanBetterQuestingDirect(
   Directory profileDirectory,
 ) async {
   final file = File(
-    p.join(profileDirectory.path, 'config', 'betterquesting', 'DefaultQuests.lang'),
+    p.join(
+      profileDirectory.path,
+      'config',
+      'betterquesting',
+      'DefaultQuests.lang',
+    ),
   );
   if (!await file.exists()) return null;
 

@@ -63,125 +63,133 @@ void main() {
     ]);
 
     final kubejsContent = await File(
-      p.joinAll([tempDir.path, 'kubejs', 'assets', 'kubejs', 'lang', 'ja_jp.json']),
+      p.joinAll([
+        tempDir.path,
+        'kubejs',
+        'assets',
+        'kubejs',
+        'lang',
+        'ja_jp.json',
+      ]),
     ).readAsString();
     final ftbquestsContent = await File(
-      p.joinAll([tempDir.path, 'kubejs', 'assets', 'ftbquests', 'lang', 'ja_jp.json']),
+      p.joinAll([
+        tempDir.path,
+        'kubejs',
+        'assets',
+        'ftbquests',
+        'lang',
+        'ja_jp.json',
+      ]),
     ).readAsString();
 
     expect(kubejsContent, contains('[MOCK] Quest A'));
     expect(kubejsContent, ftbquestsContent);
   });
 
-  test(
-    'SNBT は翻訳前にバックアップされたうえで同一ファイルへ上書きされる(受け入れ条件5,6)',
-    () async {
-      final snbtFile = File(
-        p.join(tempDir.path, 'config', 'ftbquests', 'quests', 'chapter1.snbt'),
-      );
-      await snbtFile.parent.create(recursive: true);
-      await snbtFile.writeAsString('title: "Chapter One"');
+  test('SNBT は翻訳前にバックアップされたうえで同一ファイルへ上書きされる(受け入れ条件5,6)', () async {
+    final snbtFile = File(
+      p.join(tempDir.path, 'config', 'ftbquests', 'quests', 'chapter1.snbt'),
+    );
+    await snbtFile.parent.create(recursive: true);
+    await snbtFile.writeAsString('title: "Chapter One"');
 
-      final orchestrator = QuestTranslationOrchestrator(
-        adapterFactory: _FakeAdapterFactory(),
-      );
-      final scanned = await orchestrator.scan(profileDirectory: tempDir);
-      expect(scanned, hasLength(1));
+    final orchestrator = QuestTranslationOrchestrator(
+      adapterFactory: _FakeAdapterFactory(),
+    );
+    final scanned = await orchestrator.scan(profileDirectory: tempDir);
+    expect(scanned, hasLength(1));
 
-      final result = await orchestrator.translateAndWrite(
-        profileDirectory: tempDir,
-        selectedEntries: scanned,
-        targetLanguageId: 'ja_jp',
-        targetLanguageDisplayName: '日本語',
-        settings: AppSettings.defaults(),
-        apiKey: 'test-key',
-        sessionId: '20260803-120001',
-      );
+    final result = await orchestrator.translateAndWrite(
+      profileDirectory: tempDir,
+      selectedEntries: scanned,
+      targetLanguageId: 'ja_jp',
+      targetLanguageDisplayName: '日本語',
+      settings: AppSettings.defaults(),
+      apiKey: 'test-key',
+      sessionId: '20260803-120001',
+    );
 
-      expect(result.snbtBackupDirectory, isNotNull);
-      final backupFile = File(
-        p.joinAll([
-          result.snbtBackupDirectory!.path,
-          'config',
-          'ftbquests',
-          'quests',
-          'chapter1.snbt',
-        ]),
-      );
-      expect(await backupFile.readAsString(), 'title: "Chapter One"');
+    expect(result.snbtBackupDirectory, isNotNull);
+    final backupFile = File(
+      p.joinAll([
+        result.snbtBackupDirectory!.path,
+        'config',
+        'ftbquests',
+        'quests',
+        'chapter1.snbt',
+      ]),
+    );
+    expect(await backupFile.readAsString(), 'title: "Chapter One"');
 
-      // 原本は同一ファイルへ上書きされ、言語サフィックス付きの別ファイルは作られない。
-      expect(await snbtFile.readAsString(), contains('[MOCK] Chapter One'));
-      expect(
-        await Directory(
-          p.join(tempDir.path, 'config', 'ftbquests', 'quests'),
-        ).list().length,
-        1,
-      );
-    },
-  );
+    // 原本は同一ファイルへ上書きされ、言語サフィックス付きの別ファイルは作られない。
+    expect(await snbtFile.readAsString(), contains('[MOCK] Chapter One'));
+    expect(
+      await Directory(
+        p.join(tempDir.path, 'config', 'ftbquests', 'quests'),
+      ).list().length,
+      1,
+    );
+  });
 
-  test(
-    'Better Quests 標準・直接は新規ファイルとして出力され、原本は変更されない(受け入れ条件7,8)',
-    () async {
-      final standardFile = File(
-        p.join(tempDir.path, 'resources', 'betterquesting', 'lang', 'en_us.json'),
-      );
-      await standardFile.parent.create(recursive: true);
-      await standardFile.writeAsString('{"quest.b": "Quest B"}');
+  test('Better Quests 標準・直接は新規ファイルとして出力され、原本は変更されない(受け入れ条件7,8)', () async {
+    final standardFile = File(
+      p.join(tempDir.path, 'resources', 'betterquesting', 'lang', 'en_us.json'),
+    );
+    await standardFile.parent.create(recursive: true);
+    await standardFile.writeAsString('{"quest.b": "Quest B"}');
 
-      final directFile = File(
-        p.join(tempDir.path, 'config', 'betterquesting', 'DefaultQuests.lang'),
-      );
-      await directFile.parent.create(recursive: true);
-      await directFile.writeAsString('quest.c=Quest C');
+    final directFile = File(
+      p.join(tempDir.path, 'config', 'betterquesting', 'DefaultQuests.lang'),
+    );
+    await directFile.parent.create(recursive: true);
+    await directFile.writeAsString('quest.c=Quest C');
 
-      final standardBytesBefore = await standardFile.readAsBytes();
-      final directBytesBefore = await directFile.readAsBytes();
+    final standardBytesBefore = await standardFile.readAsBytes();
+    final directBytesBefore = await directFile.readAsBytes();
 
-      final orchestrator = QuestTranslationOrchestrator(
-        adapterFactory: _FakeAdapterFactory(),
-      );
-      final scanned = await orchestrator.scan(profileDirectory: tempDir);
-      expect(scanned, hasLength(2));
+    final orchestrator = QuestTranslationOrchestrator(
+      adapterFactory: _FakeAdapterFactory(),
+    );
+    final scanned = await orchestrator.scan(profileDirectory: tempDir);
+    expect(scanned, hasLength(2));
 
-      await orchestrator.translateAndWrite(
-        profileDirectory: tempDir,
-        selectedEntries: scanned,
-        targetLanguageId: 'ja_jp',
-        targetLanguageDisplayName: '日本語',
-        settings: AppSettings.defaults().copyWith(
-          translation: AppSettings.defaults().translation.copyWith(
-            existingTranslationPolicy: ExistingTranslationPolicy.retranslateAll,
-          ),
+    await orchestrator.translateAndWrite(
+      profileDirectory: tempDir,
+      selectedEntries: scanned,
+      targetLanguageId: 'ja_jp',
+      targetLanguageDisplayName: '日本語',
+      settings: AppSettings.defaults().copyWith(
+        translation: AppSettings.defaults().translation.copyWith(
+          existingTranslationPolicy: ExistingTranslationPolicy.retranslateAll,
         ),
-        apiKey: 'test-key',
-        sessionId: '20260803-120002',
-      );
+      ),
+      apiKey: 'test-key',
+      sessionId: '20260803-120002',
+    );
 
-      final standardOutput = File(
-        p.joinAll([
-          tempDir.path,
-          'resources',
-          'betterquesting',
-          'lang',
-          'en_us.ja_jp.json',
-        ]),
-      );
-      final directOutput = File(
-        p.joinAll([
-          tempDir.path,
-          'config',
-          'betterquesting',
-          'DefaultQuests.ja_jp.lang',
-        ]),
-      );
+    final standardOutput = File(
+      p.joinAll([
+        tempDir.path,
+        'resources',
+        'betterquesting',
+        'lang',
+        'en_us.ja_jp.json',
+      ]),
+    );
+    final directOutput = File(
+      p.joinAll([
+        tempDir.path,
+        'config',
+        'betterquesting',
+        'DefaultQuests.ja_jp.lang',
+      ]),
+    );
 
-      expect(await standardOutput.readAsString(), contains('[MOCK] Quest B'));
-      expect(await directOutput.readAsString(), 'quest.c=[MOCK] Quest C');
+    expect(await standardOutput.readAsString(), contains('[MOCK] Quest B'));
+    expect(await directOutput.readAsString(), 'quest.c=[MOCK] Quest C');
 
-      expect(await standardFile.readAsBytes(), equals(standardBytesBefore));
-      expect(await directFile.readAsBytes(), equals(directBytesBefore));
-    },
-  );
+    expect(await standardFile.readAsBytes(), equals(standardBytesBefore));
+    expect(await directFile.readAsBytes(), equals(directBytesBefore));
+  });
 }

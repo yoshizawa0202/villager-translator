@@ -24,7 +24,10 @@ void main() {
       expect(files[1].relativePath, 'kubejs/assets/ftbquests/lang/ja_jp.json');
       expect(files[0].content, files[1].content);
       // キーがソートされている(受け入れ条件9)。
-      expect(files[0].content.indexOf('"a"'), lessThan(files[0].content.indexOf('"b"')));
+      expect(
+        files[0].content.indexOf('"a"'),
+        lessThan(files[0].content.indexOf('"b"')),
+      );
     });
 
     test('SNBT は同一パスへ上書きする内容を返す(受け入れ条件5)', () {
@@ -55,14 +58,14 @@ void main() {
         relativePath: 'resources/betterquesting/lang/en_us.json',
         sourceEntries: const {'a': '1'},
       );
-      final output = QuestTranslationOutput(
-        entry: entry,
-        entries: {'a': '1訳'},
-      );
+      final output = QuestTranslationOutput(entry: entry, entries: {'a': '1訳'});
 
       final files = buildQuestOutputFiles(output, 'ja_jp');
 
-      expect(files.single.relativePath, 'resources/betterquesting/lang/en_us.ja_jp.json');
+      expect(
+        files.single.relativePath,
+        'resources/betterquesting/lang/en_us.ja_jp.json',
+      );
     });
 
     test('Better Quests 直接は DefaultQuests.{lang}.lang として出力される(受け入れ条件8)', () {
@@ -78,7 +81,10 @@ void main() {
 
       final files = buildQuestOutputFiles(output, 'ja_jp');
 
-      expect(files.single.relativePath, 'config/betterquesting/DefaultQuests.ja_jp.lang');
+      expect(
+        files.single.relativePath,
+        'config/betterquesting/DefaultQuests.ja_jp.lang',
+      );
       // .lang はキーのソート順で key=value 再シリアライズされる(受け入れ条件9)。
       expect(files.single.content, 'a=1訳\nb=2訳');
     });
