@@ -97,7 +97,10 @@ class _ApiKeyFieldState extends State<ApiKeyField> {
     await context.read<SettingsController>().setApiKey(provider, value);
   }
 
-  Future<void> _testConnection(BuildContext context, LlmProvider provider) async {
+  Future<void> _testConnection(
+    BuildContext context,
+    LlmProvider provider,
+  ) async {
     final controller = context.read<SettingsController>();
     final candidateApiKey = _textController.text;
     final isValid = await controller.testApiKey(provider, candidateApiKey);

@@ -91,7 +91,9 @@ class _LanguageManagementDialogState extends State<LanguageManagementDialog> {
                   padding: const EdgeInsets.only(top: 4),
                   child: Text(
                     _errorMessage!,
-                    style: TextStyle(color: Theme.of(context).colorScheme.error),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
                   ),
                 ),
               Align(

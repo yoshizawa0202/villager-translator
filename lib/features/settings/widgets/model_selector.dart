@@ -91,10 +91,8 @@ class _ModelSelectorState extends State<ModelSelector> {
             ),
             onFieldSubmitted: (value) {
               context.read<SettingsController>().updateLlm(
-                (s) => s.copyWith(
-                  model: kCustomModelSentinel,
-                  customModel: value,
-                ),
+                (s) =>
+                    s.copyWith(model: kCustomModelSentinel, customModel: value),
               );
             },
             onEditingComplete: () {
