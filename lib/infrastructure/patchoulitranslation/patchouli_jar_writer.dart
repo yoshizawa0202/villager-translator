@@ -14,6 +14,10 @@ import 'package:archive/archive.dart';
 /// することで、書き込み処理の途中で例外が発生しても原本の JAR が破損した
 /// 状態で残らないようにする(`rename` は同一ボリューム内であれば OS レベルで
 /// アトミックに行われ、成功するまで原本は一切変更されない、受け入れ条件10)。
+///
+/// Windows では宛先が既に存在すると `rename` が失敗するため、既存 JAR を
+/// 一旦 `.bak` へ退避してからリネームし、成功後にバックアップを削除する
+/// (`SettingsRepository.save()` と同様の手順)。
 Future<void> writePatchouliTranslationsToJar({
   required File jarFile,
   required Map<String, String> newEntries,
@@ -35,6 +39,17 @@ Future<void> writePatchouliTranslationsToJar({
   final zipBytes = ZipEncoder().encodeBytes(outputArchive);
 
   final tempFile = File('${jarFile.path}.tmp');
+  final backupFile = File('${jarFile.path}.bak');
   await tempFile.writeAsBytes(zipBytes);
+
+  if (await backupFile.exists()) {
+    await backupFile.delete();
+  }
+  if (await jarFile.exists()) {
+    await jarFile.rename(backupFile.path);
+  }
   await tempFile.rename(jarFile.path);
+  if (await backupFile.exists()) {
+    await backupFile.delete();
+  }
 }
