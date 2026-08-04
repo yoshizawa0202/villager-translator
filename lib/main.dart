@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 
+import 'features/custom_file_translation/custom_file_translation_page.dart';
 import 'features/mod_translation/mod_translation_page.dart';
 import 'features/patchouli_translation/patchouli_translation_page.dart';
 import 'features/quest_translation/quest_translation_page.dart';
@@ -89,14 +90,14 @@ class ProjectHomePage extends StatelessWidget {
                 SizedBox(height: 24),
                 Chip(label: Text('Windows デスクトップ版')),
                 SizedBox(height: 24),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
                   children: [
                     _OpenModTranslationButton(),
-                    SizedBox(width: 12),
                     _OpenQuestTranslationButton(),
-                    SizedBox(width: 12),
                     _OpenPatchouliTranslationButton(),
+                    _OpenCustomFileTranslationButton(),
                   ],
                 ),
               ],
@@ -157,6 +158,25 @@ class _OpenPatchouliTranslationButton extends StatelessWidget {
         );
       },
       child: const Text('Patchouli 翻訳'),
+    );
+  }
+}
+
+class _OpenCustomFileTranslationButton extends StatelessWidget {
+  const _OpenCustomFileTranslationButton();
+
+  @override
+  Widget build(BuildContext context) {
+    return ElevatedButton(
+      key: const Key('openCustomFileTranslationButton'),
+      onPressed: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => const CustomFileTranslationPage(),
+          ),
+        );
+      },
+      child: const Text('カスタムファイル翻訳'),
     );
   }
 }
