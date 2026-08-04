@@ -85,7 +85,7 @@ void main() {
     expect(contents.length, 1);
   });
 
-  test('書き込み後、一時ファイルが残らない', () async {
+  test('書き込み後、一時ファイル・バックアップファイルが残らない', () async {
     final jarFile = File(p.join(tempDir.path, 'guidemod.jar'));
     await writeFakeJar(jarFile, {'a.json': '{"a": "A"}'});
 
@@ -95,7 +95,29 @@ void main() {
     );
 
     final tempFile = File('${jarFile.path}.tmp');
+    final backupFile = File('${jarFile.path}.bak');
     expect(await tempFile.exists(), isFalse);
+    expect(await backupFile.exists(), isFalse);
     expect(await jarFile.exists(), isTrue);
+  });
+
+  test('宛先 JAR が既に存在していても上書きに成功する(Windows での rename 失敗を回避)', () async {
+    final jarFile = File(p.join(tempDir.path, 'guidemod.jar'));
+    await writeFakeJar(jarFile, {'a.json': '{"a": "A"}'});
+
+    // 既存ファイルが存在する状態での2回目の書き込みが成功することを検証する。
+    await writePatchouliTranslationsToJar(
+      jarFile: jarFile,
+      newEntries: {'b.json': '{"b": "B"}'},
+    );
+    await writePatchouliTranslationsToJar(
+      jarFile: jarFile,
+      newEntries: {'c.json': '{"c": "C"}'},
+    );
+
+    final contents = await _readAllText(jarFile);
+    expect(contents['a.json'], '{"a": "A"}');
+    expect(contents['b.json'], '{"b": "B"}');
+    expect(contents['c.json'], '{"c": "C"}');
   });
 }
