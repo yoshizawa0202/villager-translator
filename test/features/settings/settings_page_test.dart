@@ -97,6 +97,46 @@ void main() {
     expect(find.textContaining('{{content}}'), findsNothing);
   });
 
+  testWidgets('設定変更を保存すると、保存状態インジケーターの表示が更新される(#9)', (tester) async {
+    final controller = await pumpSettingsPage(tester);
+
+    expect(find.text('変更内容は入力するたびに自動的に保存されます'), findsOneWidget);
+
+    await controller.updateTranslation(
+      (s) => s.copyWith(resourcePackName: 'Changed'),
+    );
+    await tester.pump();
+
+    expect(find.text('変更内容は入力するたびに自動的に保存されます'), findsNothing);
+    expect(find.textContaining('保存しました'), findsOneWidget);
+  });
+
+  testWidgets('翻訳実行中に設定画面を開くと注意書きが表示される(#9)', (tester) async {
+    final controller = SettingsController(
+      repository: InMemorySettingsRepository(),
+      apiKeyStore: InMemoryApiKeyStore(),
+    );
+    await controller.load();
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<SettingsController>.value(
+        value: controller,
+        child: const MaterialApp(
+          home: SettingsPage(isTranslationRunning: true),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('translationRunningNotice')), findsOneWidget);
+  });
+
+  testWidgets('翻訳実行中でなければ注意書きは表示されない(#9)', (tester) async {
+    await pumpSettingsPage(tester);
+
+    expect(find.byKey(const Key('translationRunningNotice')), findsNothing);
+  });
+
   testWidgets('「デフォルトに戻す」で翻訳設定が初期値に戻る (AC5)', (tester) async {
     final controller = await pumpSettingsPage(tester);
     await controller.updateTranslation(

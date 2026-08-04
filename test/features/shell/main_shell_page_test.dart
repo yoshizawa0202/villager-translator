@@ -168,4 +168,103 @@ void main() {
     expect(modController.targetLanguageId, 'fr_fr');
     expect(questController.targetLanguageId, 'de_de');
   });
+
+  testWidgets('翻訳(スキャン)実行中に設定画面を開くと、実行中である旨の注意書きが表示される(#9)', (
+    tester,
+  ) async {
+    final settingsController = await _buildSettingsController();
+    final shared = ProfileDirectoryController();
+    final modController = ModTranslationController(
+      settingsController: settingsController,
+      orchestrator: _HangingModOrchestrator(),
+      profileDirectoryController: shared,
+    );
+    final questController = QuestTranslationController(
+      settingsController: settingsController,
+      profileDirectoryController: shared,
+    );
+    final patchouliController = PatchouliTranslationController(
+      settingsController: settingsController,
+      profileDirectoryController: shared,
+    );
+    final customFileController = CustomFileTranslationController(
+      settingsController: settingsController,
+      profileDirectoryController: shared,
+    );
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<SettingsController>.value(
+            value: settingsController,
+          ),
+        ],
+        child: MaterialApp(
+          home: MainShellPage(
+            profileDirectoryController: shared,
+            modController: modController,
+            questController: questController,
+            patchouliController: patchouliController,
+            customFileController: customFileController,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    modController.setProfileDirectoryPath('C:/dummy-profile');
+    unawaited(modController.scan());
+    await tester.pump();
+
+    await tester.tap(find.byKey(const Key('openSettingsButton')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('translationRunningNotice')), findsOneWidget);
+  });
+
+  testWidgets('翻訳実行中でないときに設定画面を開いても注意書きは表示されない(#9)', (tester) async {
+    final settingsController = await _buildSettingsController();
+    final shared = ProfileDirectoryController();
+    final modController = ModTranslationController(
+      settingsController: settingsController,
+      profileDirectoryController: shared,
+    );
+    final questController = QuestTranslationController(
+      settingsController: settingsController,
+      profileDirectoryController: shared,
+    );
+    final patchouliController = PatchouliTranslationController(
+      settingsController: settingsController,
+      profileDirectoryController: shared,
+    );
+    final customFileController = CustomFileTranslationController(
+      settingsController: settingsController,
+      profileDirectoryController: shared,
+    );
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<SettingsController>.value(
+            value: settingsController,
+          ),
+        ],
+        child: MaterialApp(
+          home: MainShellPage(
+            profileDirectoryController: shared,
+            modController: modController,
+            questController: questController,
+            patchouliController: patchouliController,
+            customFileController: customFileController,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('openSettingsButton')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('translationRunningNotice')), findsNothing);
+  });
 }

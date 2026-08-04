@@ -161,6 +161,51 @@ void main() {
     });
   });
 
+  group('SettingsController.lastSavedAt(保存状態インジケーター用、#9)', () {
+    test('読み込み直後は null で、保存が成功するたびに更新される', () async {
+      final controller = SettingsController(
+        repository: repository,
+        apiKeyStore: InMemoryApiKeyStore(),
+      );
+      await controller.load();
+
+      expect(controller.lastSavedAt, isNull);
+
+      await controller.updateTranslation(
+        (s) => s.copyWith(resourcePackName: 'Changed'),
+      );
+
+      expect(controller.lastSavedAt, isNotNull);
+    });
+
+    test('検証エラーで保存が行われなかった場合は更新されない', () async {
+      final controller = SettingsController(
+        repository: repository,
+        apiKeyStore: InMemoryApiKeyStore(),
+      );
+      await controller.load();
+
+      final error = await controller.updateLlm(
+        (s) => s.copyWith(temperature: 9.9),
+      );
+
+      expect(error, isNotNull);
+      expect(controller.lastSavedAt, isNull);
+    });
+
+    test('API キーの保存でも更新される', () async {
+      final controller = SettingsController(
+        repository: repository,
+        apiKeyStore: InMemoryApiKeyStore(),
+      );
+      await controller.load();
+
+      await controller.setApiKey(LlmProvider.openai, 'secret-key');
+
+      expect(controller.lastSavedAt, isNotNull);
+    });
+  });
+
   group('SettingsController.addCustomLanguage / removeCustomLanguage', () {
     test('有効なカスタム言語を追加でき、一覧に反映される', () async {
       final controller = SettingsController(

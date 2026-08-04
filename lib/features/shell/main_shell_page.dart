@@ -222,7 +222,8 @@ class _MainShellPageState extends State<MainShellPage>
                   onPressed: () {
                     Navigator.of(context).push(
                       MaterialPageRoute(
-                        builder: (context) => const SettingsPage(),
+                        builder: (context) =>
+                            SettingsPage(isTranslationRunning: isBusy),
                       ),
                     );
                   },

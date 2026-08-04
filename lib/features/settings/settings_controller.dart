@@ -22,16 +22,29 @@ class SettingsController extends ChangeNotifier {
     required SettingsRepository repository,
     required ApiKeyStore apiKeyStore,
     LlmAdapterFactory? adapterFactory,
+    DateTime Function()? clock,
   }) : _repository = repository,
        _apiKeyStore = apiKeyStore,
-       _adapterFactory = adapterFactory ?? DefaultLlmAdapterFactory();
+       _adapterFactory = adapterFactory ?? DefaultLlmAdapterFactory(),
+       _clock = clock ?? DateTime.now;
 
   final SettingsRepository _repository;
   final ApiKeyStore _apiKeyStore;
   final LlmAdapterFactory _adapterFactory;
+  final DateTime Function() _clock;
 
   AppSettings _settings = AppSettings.defaults();
   AppSettings get settings => _settings;
+
+  /// 直近で保存(設定ファイル / セキュアストレージへの書き込み)が完了した日時。
+  /// 未保存(読み込み直後で一度も変更していない)場合は `null`。
+  /// 設定画面の保存状態インジケーターに用いる(#9)。
+  DateTime? _lastSavedAt;
+  DateTime? get lastSavedAt => _lastSavedAt;
+
+  void _markSaved() {
+    _lastSavedAt = _clock();
+  }
 
   final Map<LlmProvider, String> _apiKeys = {
     for (final provider in LlmProvider.values) provider: '',
@@ -74,6 +87,7 @@ class SettingsController extends ChangeNotifier {
 
     _settings = _settings.copyWith(llm: updated);
     await _repository.save(_settings);
+    _markSaved();
     notifyListeners();
     return null;
   }
@@ -88,6 +102,7 @@ class SettingsController extends ChangeNotifier {
 
     _settings = _settings.copyWith(translation: updated);
     await _repository.save(_settings);
+    _markSaved();
     notifyListeners();
     return null;
   }
@@ -126,6 +141,7 @@ class SettingsController extends ChangeNotifier {
   Future<void> setApiKey(LlmProvider provider, String apiKey) async {
     await _apiKeyStore.write(provider, apiKey);
     _apiKeys[provider] = apiKey;
+    _markSaved();
     notifyListeners();
   }
 
@@ -133,6 +149,7 @@ class SettingsController extends ChangeNotifier {
   Future<void> setThemeMode(AppThemeMode mode) async {
     _settings = _settings.copyWith(themeMode: mode);
     await _repository.save(_settings);
+    _markSaved();
     notifyListeners();
   }
 
@@ -141,6 +158,7 @@ class SettingsController extends ChangeNotifier {
   Future<void> resetToDefaults() async {
     _settings = AppSettings.defaults();
     await _repository.save(_settings);
+    _markSaved();
     notifyListeners();
   }
 
