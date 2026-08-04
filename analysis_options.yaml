@@ -24,5 +24,12 @@ linter:
     # avoid_print: false  # Uncomment to disable the `avoid_print` rule
     # prefer_single_quotes: true  # Uncomment to enable the `prefer_single_quotes` rule
 
+    # コンストラクタの公開パラメータ名(例: `repository`)をフィールド名(`_repository`)と
+    # 一致させる initializing formal は、フィールドを private にしたまま外部 API の
+    # 引数名を変えてしまう(呼び出し側で `_repository:` の指定が必要になり、他ライブラリ
+    # からは private 名を引数ラベルにできず コンパイルエラーになる)。このプロジェクトでは
+    # DI 目的で公開引数名 + private フィールドの組み合わせを意図的に使うため無効化する。
+    prefer_initializing_formals: false
+
 # Additional information about this file can be found at
 # https://dart.dev/guides/language/analysis-options
