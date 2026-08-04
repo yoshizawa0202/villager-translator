@@ -23,6 +23,7 @@ void main() {
       expect(settings.translation.maxTokensPerChunk, 3000);
       expect(settings.translation.fallbackToEntryBased, isTrue);
       expect(settings.translation.useTokenBasedChunking, isFalse);
+      expect(settings.themeMode, AppThemeMode.system);
     });
 
     test('toJson/fromJson の往復で内容が保持される', () {
@@ -66,6 +67,18 @@ void main() {
         'translation': 123,
       });
       expect(restored.llm.provider, AppSettings.defaults().llm.provider);
+    });
+
+    test('themeMode は toJson/fromJson で往復し、未知の値は system にフォールバックする', () {
+      final darkSettings = AppSettings.defaults().copyWith(
+        themeMode: AppThemeMode.dark,
+      );
+      final restored = AppSettings.fromJson(darkSettings.toJson());
+      expect(restored.themeMode, AppThemeMode.dark);
+
+      final json = AppSettings.defaults().toJson();
+      json['themeMode'] = 'unknown';
+      expect(AppSettings.fromJson(json).themeMode, AppThemeMode.system);
     });
 
     test('未知の existingTranslationPolicy 値は diffUpdate にフォールバックする', () {

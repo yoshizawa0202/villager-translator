@@ -129,6 +129,13 @@ class SettingsController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// テーマ切替(feature-spec.md §3.1)を設定・保存する。
+  Future<void> setThemeMode(AppThemeMode mode) async {
+    _settings = _settings.copyWith(themeMode: mode);
+    await _repository.save(_settings);
+    notifyListeners();
+  }
+
   /// LLM 設定・翻訳設定を初期値へリセットする。保存済みの API キーには触れない
   /// (受け入れ条件5)。
   Future<void> resetToDefaults() async {

@@ -2,6 +2,9 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
+import '../../domain/common/cancellation_token.dart';
+import '../../domain/common/translation_progress.dart';
+import '../../domain/common/translation_summary.dart';
 import '../../domain/llm/llm_adapter_config.dart';
 import '../../domain/modtranslation/jar_contents.dart';
 import '../../domain/modtranslation/mod_scan_entry.dart';
@@ -10,6 +13,7 @@ import '../../domain/modtranslation/resource_pack_builder.dart';
 import '../../domain/settings/app_settings.dart';
 import '../../domain/translation/chunker.dart';
 import '../../domain/translation/lang_codec.dart';
+import '../common/translation_summary_writer.dart';
 import '../llm/llm_adapter_factory.dart';
 import 'jar_reader.dart';
 import 'mod_directory_scanner.dart';
@@ -31,6 +35,7 @@ class ModTranslateAndPackResult {
     required this.translationResult,
     required this.packDirectory,
     required this.backupDirectory,
+    required this.summary,
   });
 
   final ModTranslationResult translationResult;
@@ -39,6 +44,9 @@ class ModTranslateAndPackResult {
   /// (feature-spec.md §6.2、受け入れ条件11)。
   final Directory? packDirectory;
   final Directory? backupDirectory;
+
+  /// この実行の翻訳履歴サマリ(`translation_summary.json` の内容と同一)。
+  final TranslationSummary summary;
 }
 
 /// MOD スキャン・翻訳・リソースパック生成・バックアップを統括する
@@ -83,6 +91,9 @@ class ModTranslationOrchestrator {
     required AppSettings settings,
     required String apiKey,
     required String sessionId,
+    CancellationToken? cancellationToken,
+    SingleFileProgressCallback? onSingleFileProgress,
+    OverallProgressCallback? onOverallProgress,
   }) async {
     final adapter = _adapterFactory.create(
       settings.llm.provider,
@@ -129,6 +140,20 @@ class ModTranslationOrchestrator {
       chunkEntries: chunkEntries,
       translateChunk: translateChunk,
       maxRetries: settings.llm.maxRetries,
+      cancellationToken: cancellationToken,
+      onSingleFileProgress: onSingleFileProgress,
+      onOverallProgress: onOverallProgress,
+    );
+
+    final summary = _buildSummary(
+      sessionId: sessionId,
+      targetLanguageId: targetLanguageId,
+      selectedEntries: selectedEntries,
+      translationResult: translationResult,
+    );
+    await const TranslationSummaryWriter().write(
+      profileDirectory: profileDirectory,
+      summary: summary,
     );
 
     if (!translationResult.hasOutputs) {
@@ -136,6 +161,7 @@ class ModTranslationOrchestrator {
         translationResult: translationResult,
         packDirectory: null,
         backupDirectory: null,
+        summary: summary,
       );
     }
 
@@ -161,8 +187,75 @@ class ModTranslationOrchestrator {
       translationResult: translationResult,
       packDirectory: packDirectory,
       backupDirectory: backupDirectory,
+      summary: summary,
     );
   }
+}
+
+/// 選択された MOD と処理結果を突き合わせ、翻訳履歴サマリの項目一覧を組み立てる。
+///
+/// キャンセルにより未着手のまま終わった MOD(outputs にも skippedModIds にも
+/// 含まれないもの)はこの実行に関する結果がまだ無いため、サマリには含めない。
+TranslationSummary _buildSummary({
+  required String sessionId,
+  required String targetLanguageId,
+  required List<ModScanEntry> selectedEntries,
+  required ModTranslationResult translationResult,
+}) {
+  final entriesById = {for (final e in selectedEntries) e.modInfo.id: e};
+  final outputsById = {for (final o in translationResult.outputs) o.modId: o};
+
+  final items = <TranslationSummaryItem>[];
+
+  for (final modId in translationResult.translatedModIds) {
+    final entry = entriesById[modId];
+    final output = outputsById[modId];
+    if (entry == null || output == null) continue;
+
+    final totalKeyCount = entry.sourceEntries.length;
+    final translatedKeyCount = output.entries.keys
+        .where(entry.sourceEntries.containsKey)
+        .length;
+
+    items.add(
+      TranslationSummaryItem(
+        type: TranslationTargetType.mod,
+        id: modId,
+        displayName: entry.modInfo.name,
+        targetLanguage: targetLanguageId,
+        outputPath: entry.jarRelativePath,
+        success: totalKeyCount == 0 || translatedKeyCount >= totalKeyCount,
+        translatedKeyCount: translatedKeyCount,
+        totalKeyCount: totalKeyCount,
+      ),
+    );
+  }
+
+  for (final modId in translationResult.skippedModIds) {
+    final entry = entriesById[modId];
+    if (entry == null) continue;
+
+    final keyCount = entry.sourceEntries.length;
+    items.add(
+      TranslationSummaryItem(
+        type: TranslationTargetType.mod,
+        id: modId,
+        displayName: entry.modInfo.name,
+        targetLanguage: targetLanguageId,
+        outputPath: null,
+        success: true,
+        translatedKeyCount: keyCount,
+        totalKeyCount: keyCount,
+      ),
+    );
+  }
+
+  return TranslationSummary(
+    sessionId: sessionId,
+    targetLanguage: targetLanguageId,
+    createdAt: DateTime.now(),
+    items: items,
+  );
 }
 
 /// [entry] の対象言語ファイルが JAR 内に既に存在すれば、その内容を読み込む

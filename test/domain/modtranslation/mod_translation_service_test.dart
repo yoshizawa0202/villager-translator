@@ -1,4 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:villager_translator/domain/common/cancellation_token.dart';
+import 'package:villager_translator/domain/common/translation_progress.dart';
 import 'package:villager_translator/domain/modtranslation/mod_info.dart';
 import 'package:villager_translator/domain/modtranslation/mod_scan_entry.dart';
 import 'package:villager_translator/domain/modtranslation/mod_translation_service.dart';
@@ -137,6 +139,69 @@ void main() {
       );
 
       expect(processedOrder, ['amod', 'zmod']);
+    });
+
+    test('キャンセル済みの場合、以降の MOD の処理を開始しない(受け入れ条件5)', () async {
+      final token = CancellationToken();
+      final entryA = _entry('amod', {'a': '1'});
+      final entryB = _entry('bmod', {'a': '1'});
+      final processed = <String>[];
+
+      final result = await translateSelectedMods(
+        selectedEntries: [entryA, entryB],
+        policy: ExistingTranslationPolicy.retranslateAll,
+        loadExistingTargetEntries: (entry) async {
+          processed.add(entry.modInfo.id);
+          if (entry.modInfo.id == 'amod') token.cancel();
+          return null;
+        },
+        chunkEntries: _singleChunk,
+        translateChunk: _fakeTranslate,
+        cancellationToken: token,
+      );
+
+      expect(processed, ['amod']);
+      expect(result.translatedModIds, ['amod']);
+    });
+
+    test('進捗コールバックが対象1件ごとに完了件数/総件数を通知する', () async {
+      final entryA = _entry('amod', {'a': '1'});
+      final entryB = _entry('bmod', {'a': '1'});
+      final overallUpdates = <List<int>>[];
+
+      await translateSelectedMods(
+        selectedEntries: [entryA, entryB],
+        policy: ExistingTranslationPolicy.retranslateAll,
+        loadExistingTargetEntries: (_) async => null,
+        chunkEntries: _singleChunk,
+        translateChunk: _fakeTranslate,
+        onOverallProgress: (progress) =>
+            overallUpdates.add([progress.completedItems, progress.totalItems]),
+      );
+
+      expect(overallUpdates, [
+        [1, 2],
+        [2, 2],
+      ]);
+    });
+
+    test('単一ファイル進捗コールバックがチャンク完了ごとに通知される', () async {
+      final entry = _entry('amod', {'a': '1', 'b': '2'});
+      List<Map<String, String>> chunkedByKey(Map<String, String> entries) =>
+          entries.entries.map((e) => {e.key: e.value}).toList();
+      final fileProgressUpdates = <ChunkProgress>[];
+
+      await translateSelectedMods(
+        selectedEntries: [entry],
+        policy: ExistingTranslationPolicy.retranslateAll,
+        loadExistingTargetEntries: (_) async => null,
+        chunkEntries: chunkedByKey,
+        translateChunk: _fakeTranslate,
+        onSingleFileProgress: fileProgressUpdates.add,
+      );
+
+      expect(fileProgressUpdates.map((p) => p.completedChunks), [1, 2]);
+      expect(fileProgressUpdates.map((p) => p.totalChunks), [2, 2]);
     });
   });
 }

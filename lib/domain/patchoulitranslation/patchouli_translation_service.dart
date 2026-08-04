@@ -1,3 +1,5 @@
+import '../common/cancellation_token.dart';
+import '../common/translation_progress.dart';
 import '../settings/existing_translation_policy.dart';
 import '../translation/diff_update.dart';
 import '../translation/retry_policy.dart';
@@ -84,16 +86,35 @@ Future<PatchouliTranslationResult> translatePatchouliBooks({
   required ChunkTranslator translateChunk,
   int maxRetries = 3,
   RetryWaiter waiter = _defaultWaiter,
+  CancellationToken? cancellationToken,
+  SingleFileProgressCallback? onSingleFileProgress,
+  OverallProgressCallback? onOverallProgress,
 }) async {
   final orderedEntries = sortPatchouliBookEntries(selectedEntries);
 
   final outputs = <PatchouliTranslationOutput>[];
   final translatedBookKeys = <String>[];
   final skippedBookKeys = <String>[];
+  var processedCount = 0;
+
+  void reportOverallProgress() {
+    processedCount++;
+    onOverallProgress?.call(
+      OverallProgress(
+        completedItems: processedCount,
+        totalItems: orderedEntries.length,
+      ),
+    );
+  }
 
   for (final entry in orderedEntries) {
+    if (cancellationToken?.isCancelled ?? false) {
+      break;
+    }
+
     if (entry.sourceEntries.isEmpty) {
       skippedBookKeys.add(entry.bookKey);
+      reportOverallProgress();
       continue;
     }
 
@@ -104,6 +125,7 @@ Future<PatchouliTranslationResult> translatePatchouliBooks({
       final existing = await loadExistingTargetEntries(entry);
       if (existing.isComplete) {
         skippedBookKeys.add(entry.bookKey);
+        reportOverallProgress();
         continue;
       }
       keysToTranslate = entry.sourceEntries;
@@ -116,6 +138,7 @@ Future<PatchouliTranslationResult> translatePatchouliBooks({
       );
       if (job.isSkipped) {
         skippedBookKeys.add(entry.bookKey);
+        reportOverallProgress();
         continue;
       }
       keysToTranslate = job.keysToTranslate;
@@ -131,6 +154,10 @@ Future<PatchouliTranslationResult> translatePatchouliBooks({
       translateChunk: translateChunk,
       maxRetries: maxRetries,
       waiter: waiter,
+      cancellationToken: cancellationToken,
+      onChunkComplete: (completed, total) => onSingleFileProgress?.call(
+        ChunkProgress(completedChunks: completed, totalChunks: total),
+      ),
     );
 
     final newlyTranslated = <String, String>{};
@@ -141,6 +168,7 @@ Future<PatchouliTranslationResult> translatePatchouliBooks({
     if (newlyTranslated.isEmpty) {
       // 唯一のチャンクがリトライを使い切った(=この本全体が失敗)。
       skippedBookKeys.add(entry.bookKey);
+      reportOverallProgress();
       continue;
     }
 
@@ -155,6 +183,7 @@ Future<PatchouliTranslationResult> translatePatchouliBooks({
     outputs.add(
       PatchouliTranslationOutput(entry: entry, entries: finalEntries),
     );
+    reportOverallProgress();
   }
 
   return PatchouliTranslationResult(

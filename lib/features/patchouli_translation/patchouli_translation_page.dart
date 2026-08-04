@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 
 import '../../infrastructure/patchoulitranslation/patchouli_translation_orchestrator.dart';
 import '../settings/settings_controller.dart';
+import '../shell/widgets/log_viewer_dialog.dart';
+import '../shell/widgets/translation_completion_dialog.dart';
 import 'patchouli_translation_controller.dart';
 
 /// Patchouli ガイドブック翻訳タブ画面(feature-spec.md §8)。
@@ -22,31 +24,70 @@ class PatchouliTranslationPage extends StatelessWidget {
     if (controller != null) {
       return ChangeNotifierProvider<PatchouliTranslationController>.value(
         value: controller!,
-        child: const _PatchouliTranslationView(),
+        child: Scaffold(
+          appBar: AppBar(title: const Text('Patchouli ガイドブック翻訳')),
+          body: const PatchouliTranslationTabView(),
+        ),
       );
     }
     return ChangeNotifierProvider<PatchouliTranslationController>(
       create: (context) => PatchouliTranslationController(
         settingsController: context.read<SettingsController>(),
       ),
-      child: const _PatchouliTranslationView(),
+      child: Scaffold(
+        appBar: AppBar(title: const Text('Patchouli ガイドブック翻訳')),
+        body: const PatchouliTranslationTabView(),
+      ),
     );
   }
 }
 
-class _PatchouliTranslationView extends StatefulWidget {
-  const _PatchouliTranslationView();
+/// Patchouli タブの中身(4タブ統合シェル([MainShellPage])のタブ本体としても使う)。
+///
+/// 独自の `Scaffold`/`AppBar` は持たない。
+class PatchouliTranslationTabView extends StatefulWidget {
+  const PatchouliTranslationTabView({super.key});
 
   @override
-  State<_PatchouliTranslationView> createState() =>
-      _PatchouliTranslationViewState();
+  State<PatchouliTranslationTabView> createState() =>
+      PatchouliTranslationTabViewState();
 }
 
-class _PatchouliTranslationViewState extends State<_PatchouliTranslationView> {
+class PatchouliTranslationTabViewState
+    extends State<PatchouliTranslationTabView> {
   final _directoryController = TextEditingController();
+  late final PatchouliTranslationController _controller;
+  PatchouliTranslateAndWriteResult? _lastShownResult;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = context.read<PatchouliTranslationController>();
+    _controller.addListener(_onControllerChanged);
+  }
+
+  void _onControllerChanged() {
+    if (!mounted) return;
+    final result = _controller.lastResult;
+    if (_controller.state == PatchouliTabState.completed &&
+        result != null &&
+        !identical(result, _lastShownResult)) {
+      _lastShownResult = result;
+      TranslationCompletionDialog.show(
+        context,
+        summary: result.summary,
+        onShowLog: () => LogViewerDialog.show(
+          context,
+          logger: _controller.sessionLogger,
+          isBusy: false,
+        ),
+      );
+    }
+  }
 
   @override
   void dispose() {
+    _controller.removeListener(_onControllerChanged);
     _directoryController.dispose();
     super.dispose();
   }
@@ -64,84 +105,81 @@ class _PatchouliTranslationViewState extends State<_PatchouliTranslationView> {
         controller.state == PatchouliTabState.scanned &&
         controller.selectedBookKeys.isNotEmpty;
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Patchouli ガイドブック翻訳')),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _ProfileDirectoryRow(directoryController: _directoryController),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: DropdownButtonFormField<String>(
-                    key: const Key('targetLanguageSelector'),
-                    initialValue: controller.targetLanguageId,
-                    decoration: const InputDecoration(labelText: '対象言語'),
-                    items: settings.translation.allLanguages
-                        .map(
-                          (l) => DropdownMenuItem(
-                            value: l.id,
-                            child: Text(l.displayName),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (value) {
-                      if (value != null) controller.setTargetLanguageId(value);
-                    },
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _ProfileDirectoryRow(directoryController: _directoryController),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: DropdownButtonFormField<String>(
+                  key: const Key('targetLanguageSelector'),
+                  initialValue: controller.targetLanguageId,
+                  decoration: const InputDecoration(labelText: '対象言語'),
+                  items: settings.translation.allLanguages
+                      .map(
+                        (l) => DropdownMenuItem(
+                          value: l.id,
+                          child: Text(l.displayName),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) {
+                    if (value != null) controller.setTargetLanguageId(value);
+                  },
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: TextField(
+                  key: const Key('searchField'),
+                  decoration: const InputDecoration(
+                    labelText: '検索(本の modId:bookId の部分一致)',
                   ),
+                  onChanged: controller.setSearchQuery,
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: TextField(
-                    key: const Key('searchField'),
-                    decoration: const InputDecoration(
-                      labelText: '検索(本の modId:bookId の部分一致)',
-                    ),
-                    onChanged: controller.setSearchQuery,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                ElevatedButton(
-                  key: const Key('scanButton'),
-                  onPressed: canScan ? controller.scan : null,
-                  child: const Text('スキャン'),
-                ),
-                const SizedBox(width: 12),
-                ElevatedButton(
-                  key: const Key('translateButton'),
-                  onPressed: canTranslate ? controller.translate : null,
-                  child: const Text('翻訳'),
-                ),
-                const SizedBox(width: 16),
-                Text(
-                  _stateLabel(controller.state),
-                  key: const Key('patchouliTabStateLabel'),
-                ),
-              ],
-            ),
-            if (controller.errorMessage != null) ...[
-              const SizedBox(height: 8),
-              Text(
-                controller.errorMessage!,
-                key: const Key('patchouliTabErrorMessage'),
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
             ],
-            if (controller.lastResult != null) ...[
-              const SizedBox(height: 8),
-              _ResultSummary(result: controller.lastResult!),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              ElevatedButton(
+                key: const Key('scanButton'),
+                onPressed: canScan ? controller.scan : null,
+                child: const Text('スキャン'),
+              ),
+              const SizedBox(width: 12),
+              ElevatedButton(
+                key: const Key('translateButton'),
+                onPressed: canTranslate ? controller.translate : null,
+                child: const Text('翻訳'),
+              ),
+              const SizedBox(width: 16),
+              Text(
+                _stateLabel(controller.state),
+                key: const Key('patchouliTabStateLabel'),
+              ),
             ],
-            const SizedBox(height: 16),
-            Expanded(child: _PatchouliTable(controller: controller)),
+          ),
+          if (controller.errorMessage != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              controller.errorMessage!,
+              key: const Key('patchouliTabErrorMessage'),
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
           ],
-        ),
+          if (controller.lastResult != null) ...[
+            const SizedBox(height: 8),
+            _ResultSummary(result: controller.lastResult!),
+          ],
+          const SizedBox(height: 16),
+          Expanded(child: _PatchouliTable(controller: controller)),
+        ],
       ),
     );
   }

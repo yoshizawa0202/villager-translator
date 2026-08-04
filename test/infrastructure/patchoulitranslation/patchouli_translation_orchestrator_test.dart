@@ -157,7 +157,16 @@ void main() {
 
     expect(await jarFile.readAsBytes(), equals(beforeBytes));
 
-    final logsDir = Directory(p.join(tempDir.path, 'logs'));
-    expect(await logsDir.exists(), isFalse);
+    // JAR バックアップは作成されないが、翻訳履歴サマリは実行のたびに書き出される
+    // (008-progress-log-history.md 受け入れ条件12)。
+    final backupDir = Directory(
+      p.join(tempDir.path, 'logs', 'localizer', '20260803-120001', 'backup'),
+    );
+    expect(await backupDir.exists(), isFalse);
+    expect(result.summary.items.single.success, isTrue);
+    expect(
+      result.summary.items.single.translatedKeyCount,
+      result.summary.items.single.totalKeyCount,
+    );
   });
 }

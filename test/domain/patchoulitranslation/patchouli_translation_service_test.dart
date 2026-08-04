@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:villager_translator/domain/common/cancellation_token.dart';
 import 'package:villager_translator/domain/patchoulitranslation/patchouli_book_entry.dart';
 import 'package:villager_translator/domain/patchoulitranslation/patchouli_translation_service.dart';
 import 'package:villager_translator/domain/settings/existing_translation_policy.dart';
@@ -188,6 +189,49 @@ void main() {
 
       expect(processedOrder, ['amod:guide', 'zmod:guide']);
       expect(result.translatedBookKeys, ['amod:guide', 'zmod:guide']);
+    });
+
+    test('キャンセル済みの場合、現在の本は完了させた上で以降の本は処理しない(受け入れ条件5)', () async {
+      final token = CancellationToken();
+      final entryA = _entry('amod', 'guide', {'book.json#0': '1'});
+      final entryB = _entry('bmod', 'guide', {'book.json#0': '1'});
+
+      final result = await translatePatchouliBooks(
+        selectedEntries: [entryA, entryB],
+        policy: ExistingTranslationPolicy.retranslateAll,
+        loadExistingTargetEntries: (_) async =>
+            const PatchouliExistingTranslation(isComplete: false, entries: {}),
+        translateChunk: (chunk) async {
+          // entryA のチャンク翻訳が完了する直前にキャンセルする
+          // (「実行中のチャンクは中断しない」ことを確認するため)。
+          token.cancel();
+          return chunk.map((k, v) => MapEntry(k, '[訳]$v'));
+        },
+        cancellationToken: token,
+      );
+
+      expect(result.translatedBookKeys, ['amod:guide']);
+    });
+
+    test('進捗コールバックが対象1件ごとに完了件数/総件数を通知する', () async {
+      final entryA = _entry('amod', 'guide', {'book.json#0': '1'});
+      final entryB = _entry('bmod', 'guide', {'book.json#0': '1'});
+      final overallUpdates = <List<int>>[];
+
+      await translatePatchouliBooks(
+        selectedEntries: [entryA, entryB],
+        policy: ExistingTranslationPolicy.retranslateAll,
+        loadExistingTargetEntries: (_) async =>
+            const PatchouliExistingTranslation(isComplete: false, entries: {}),
+        translateChunk: _fakeTranslate,
+        onOverallProgress: (progress) =>
+            overallUpdates.add([progress.completedItems, progress.totalItems]),
+      );
+
+      expect(overallUpdates, [
+        [1, 2],
+        [2, 2],
+      ]);
     });
   });
 }

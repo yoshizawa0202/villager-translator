@@ -2,6 +2,9 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
+import '../../domain/common/cancellation_token.dart';
+import '../../domain/common/translation_progress.dart';
+import '../../domain/common/translation_summary.dart';
 import '../../domain/llm/llm_adapter_config.dart';
 import '../../domain/modtranslation/jar_contents.dart';
 import '../../domain/patchoulitranslation/patchouli_book_entry.dart';
@@ -9,6 +12,7 @@ import '../../domain/patchoulitranslation/patchouli_output_builder.dart';
 import '../../domain/patchoulitranslation/patchouli_string_extractor.dart';
 import '../../domain/patchoulitranslation/patchouli_translation_service.dart';
 import '../../domain/settings/app_settings.dart';
+import '../common/translation_summary_writer.dart';
 import '../llm/llm_adapter_factory.dart';
 import '../modtranslation/jar_reader.dart';
 import 'patchouli_backup_writer.dart';
@@ -24,6 +28,7 @@ class PatchouliTranslateAndWriteResult {
     required this.translationResult,
     required this.updatedJarRelativePaths,
     required this.backupDirectory,
+    required this.summary,
   });
 
   final PatchouliTranslationResult translationResult;
@@ -33,6 +38,9 @@ class PatchouliTranslateAndWriteResult {
 
   /// JAR が1件も書き込まれなかった場合(全対象スキップ)は `null`。
   final Directory? backupDirectory;
+
+  /// この実行の翻訳履歴サマリ(`translation_summary.json` の内容と同一)。
+  final TranslationSummary summary;
 }
 
 /// Patchouli ガイドブックのスキャン・翻訳・JAR 書き込み・バックアップを統括する
@@ -68,6 +76,9 @@ class PatchouliTranslationOrchestrator {
     required AppSettings settings,
     required String apiKey,
     required String sessionId,
+    CancellationToken? cancellationToken,
+    SingleFileProgressCallback? onSingleFileProgress,
+    OverallProgressCallback? onOverallProgress,
   }) async {
     final adapter = _adapterFactory.create(
       settings.llm.provider,
@@ -102,6 +113,9 @@ class PatchouliTranslationOrchestrator {
       loadExistingTargetEntries: loadExistingTargetEntries,
       translateChunk: translateChunk,
       maxRetries: settings.llm.maxRetries,
+      cancellationToken: cancellationToken,
+      onSingleFileProgress: onSingleFileProgress,
+      onOverallProgress: onOverallProgress,
     );
 
     // JAR ごとに新規エントリをまとめる(同一 JAR に複数の本が含まれる場合に、
@@ -120,11 +134,23 @@ class PatchouliTranslationOrchestrator {
       }
     }
 
+    final summary = _buildSummary(
+      sessionId: sessionId,
+      targetLanguageId: targetLanguageId,
+      selectedEntries: selectedEntries,
+      translationResult: translationResult,
+    );
+    await const TranslationSummaryWriter().write(
+      profileDirectory: profileDirectory,
+      summary: summary,
+    );
+
     if (entriesByJar.isEmpty) {
       return PatchouliTranslateAndWriteResult(
         translationResult: translationResult,
         updatedJarRelativePaths: const [],
         backupDirectory: null,
+        summary: summary,
       );
     }
 
@@ -148,8 +174,75 @@ class PatchouliTranslationOrchestrator {
       translationResult: translationResult,
       updatedJarRelativePaths: entriesByJar.keys.toList()..sort(),
       backupDirectory: backupDirectory,
+      summary: summary,
     );
   }
+}
+
+/// 選択された本と処理結果を突き合わせ、翻訳履歴サマリの項目一覧を組み立てる。
+/// キャンセルにより未着手のまま終わった本はサマリに含めない。
+TranslationSummary _buildSummary({
+  required String sessionId,
+  required String targetLanguageId,
+  required List<PatchouliBookEntry> selectedEntries,
+  required PatchouliTranslationResult translationResult,
+}) {
+  final entriesByKey = {for (final e in selectedEntries) e.bookKey: e};
+  final outputsByKey = {
+    for (final o in translationResult.outputs) o.entry.bookKey: o,
+  };
+
+  final items = <TranslationSummaryItem>[];
+
+  for (final bookKey in translationResult.translatedBookKeys) {
+    final entry = entriesByKey[bookKey];
+    final output = outputsByKey[bookKey];
+    if (entry == null || output == null) continue;
+
+    final totalKeyCount = entry.sourceEntries.length;
+    final translatedKeyCount = output.entries.keys
+        .where(entry.sourceEntries.containsKey)
+        .length;
+
+    items.add(
+      TranslationSummaryItem(
+        type: TranslationTargetType.patchouli,
+        id: bookKey,
+        displayName: bookKey,
+        targetLanguage: targetLanguageId,
+        outputPath: entry.jarRelativePath,
+        success: totalKeyCount == 0 || translatedKeyCount >= totalKeyCount,
+        translatedKeyCount: translatedKeyCount,
+        totalKeyCount: totalKeyCount,
+      ),
+    );
+  }
+
+  for (final bookKey in translationResult.skippedBookKeys) {
+    final entry = entriesByKey[bookKey];
+    if (entry == null) continue;
+
+    final keyCount = entry.sourceEntries.length;
+    items.add(
+      TranslationSummaryItem(
+        type: TranslationTargetType.patchouli,
+        id: bookKey,
+        displayName: bookKey,
+        targetLanguage: targetLanguageId,
+        outputPath: null,
+        success: true,
+        translatedKeyCount: keyCount,
+        totalKeyCount: keyCount,
+      ),
+    );
+  }
+
+  return TranslationSummary(
+    sessionId: sessionId,
+    targetLanguage: targetLanguageId,
+    createdAt: DateTime.now(),
+    items: items,
+  );
 }
 
 /// [entry] の対象言語ミラーファイル群を実際に JAR から読み込む

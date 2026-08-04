@@ -2,6 +2,8 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
+import '../common/session_paths.dart';
+
 /// 生成したリソースパック([packDirectory])を、セッションディレクトリ配下の
 /// バックアップ先(`{プロファイル}/logs/localizer/{sessionId}/backup/resource_pack/`)
 /// へコピーする(feature-spec.md §6.2)。
@@ -10,16 +12,10 @@ Future<Directory> backupResourcePack({
   required Directory packDirectory,
   required String sessionId,
 }) async {
-  final backupDirectory = Directory(
-    p.join(
-      profileDirectory.path,
-      'logs',
-      'localizer',
-      sessionId,
-      'backup',
-      'resource_pack',
-    ),
-  );
+  final backupDirectory = SessionPaths(
+    profileDirectory: profileDirectory,
+    sessionId: sessionId,
+  ).backupSubdirectory('resource_pack');
   await backupDirectory.create(recursive: true);
   await _copyDirectoryContents(packDirectory, backupDirectory);
   return backupDirectory;

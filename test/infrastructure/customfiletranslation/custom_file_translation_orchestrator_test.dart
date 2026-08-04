@@ -57,17 +57,23 @@ void main() {
       expect(scanned, hasLength(2));
 
       final result = await orchestrator.translateAndWrite(
+        profileDirectory: tempDir,
         selectedEntries: scanned,
         targetLanguageId: 'ja_jp',
         targetLanguageDisplayName: '日本語',
         settings: AppSettings.defaults(),
         apiKey: 'test-key',
+        sessionId: '2026-08-04T12-00-00',
       );
 
       expect(result.translationResult.translatedPaths, [
         'dirA/a.json',
         'dirB/b.snbt',
       ]);
+      // 受け入れ条件12: 翻訳履歴サマリが実行のたびに生成される。
+      expect(result.summary.sessionId, '2026-08-04T12-00-00');
+      expect(result.summary.items.length, 2);
+      expect(result.summary.items.every((i) => i.success), isTrue);
       // 相対パス昇順で最初のファイル(dirA/a.json)のディレクトリ配下に出力される。
       expect(
         result.outputDirectory!.path,
@@ -98,11 +104,13 @@ void main() {
     );
 
     final result = await orchestrator.translateAndWrite(
+      profileDirectory: tempDir,
       selectedEntries: const [],
       targetLanguageId: 'ja_jp',
       targetLanguageDisplayName: '日本語',
       settings: AppSettings.defaults(),
       apiKey: 'test-key',
+      sessionId: '2026-08-04T12-00-00',
     );
 
     expect(result.outputDirectory, isNull);

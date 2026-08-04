@@ -2,6 +2,8 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
+import '../common/session_paths.dart';
+
 /// 翻訳前に選択した JAR ファイルを、セッションディレクトリ配下の
 /// `logs/localizer/{sessionId}/backup/patchouli_jar/` へバックアップする
 /// (feature-spec.md §8.2、受け入れ条件9)。
@@ -15,16 +17,10 @@ Future<Directory> backupPatchouliJars({
   required Iterable<String> jarRelativePaths,
   required String sessionId,
 }) async {
-  final backupDirectory = Directory(
-    p.join(
-      profileDirectory.path,
-      'logs',
-      'localizer',
-      sessionId,
-      'backup',
-      'patchouli_jar',
-    ),
-  );
+  final backupDirectory = SessionPaths(
+    profileDirectory: profileDirectory,
+    sessionId: sessionId,
+  ).backupSubdirectory('patchouli_jar');
   await backupDirectory.create(recursive: true);
 
   for (final relativePath in jarRelativePaths.toSet()) {

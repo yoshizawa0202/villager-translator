@@ -2,12 +2,16 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
+import '../../domain/common/cancellation_token.dart';
+import '../../domain/common/translation_progress.dart';
+import '../../domain/common/translation_summary.dart';
 import '../../domain/llm/llm_adapter_config.dart';
 import '../../domain/questtranslation/quest_output_builder.dart';
 import '../../domain/questtranslation/quest_scan_entry.dart';
 import '../../domain/questtranslation/quest_translation_service.dart';
 import '../../domain/settings/app_settings.dart';
 import '../../domain/translation/lang_codec.dart';
+import '../common/translation_summary_writer.dart';
 import '../llm/llm_adapter_factory.dart';
 import 'quest_backup_writer.dart';
 import 'quest_directory_scanner.dart';
@@ -22,6 +26,7 @@ class QuestTranslateAndWriteResult {
     required this.translationResult,
     required this.writtenFiles,
     required this.snbtBackupDirectory,
+    required this.summary,
   });
 
   final QuestTranslationResult translationResult;
@@ -29,6 +34,9 @@ class QuestTranslateAndWriteResult {
 
   /// SNBT を1件でも選択した場合のバックアップ先(選択がなければ `null`)。
   final Directory? snbtBackupDirectory;
+
+  /// この実行の翻訳履歴サマリ(`translation_summary.json` の内容と同一)。
+  final TranslationSummary summary;
 }
 
 /// クエスト(FTB Quests / Better Quests)のスキャン・翻訳・出力・バックアップを
@@ -56,6 +64,9 @@ class QuestTranslationOrchestrator {
     required AppSettings settings,
     required String apiKey,
     required String sessionId,
+    CancellationToken? cancellationToken,
+    SingleFileProgressCallback? onSingleFileProgress,
+    OverallProgressCallback? onOverallProgress,
   }) async {
     final snbtEntries = selectedEntries
         .where((e) => e.format == QuestFormat.ftbQuestsSnbt)
@@ -99,6 +110,9 @@ class QuestTranslationOrchestrator {
       loadExistingTargetEntries: loadExistingTargetEntries,
       translateChunk: translateChunk,
       maxRetries: settings.llm.maxRetries,
+      cancellationToken: cancellationToken,
+      onSingleFileProgress: onSingleFileProgress,
+      onOverallProgress: onOverallProgress,
     );
 
     final writtenFiles = <File>[];
@@ -112,12 +126,90 @@ class QuestTranslationOrchestrator {
       );
     }
 
+    final summary = _buildSummary(
+      sessionId: sessionId,
+      targetLanguageId: targetLanguageId,
+      selectedEntries: selectedEntries,
+      translationResult: translationResult,
+    );
+    await const TranslationSummaryWriter().write(
+      profileDirectory: profileDirectory,
+      summary: summary,
+    );
+
     return QuestTranslateAndWriteResult(
       translationResult: translationResult,
       writtenFiles: writtenFiles,
       snbtBackupDirectory: backupDirectory,
+      summary: summary,
     );
   }
+}
+
+/// 選択されたクエストファイルと処理結果を突き合わせ、翻訳履歴サマリの項目一覧を
+/// 組み立てる。キャンセルにより未着手のまま終わったファイルはサマリに含めない。
+TranslationSummary _buildSummary({
+  required String sessionId,
+  required String targetLanguageId,
+  required List<QuestScanEntry> selectedEntries,
+  required QuestTranslationResult translationResult,
+}) {
+  final entriesByPath = {for (final e in selectedEntries) e.relativePath: e};
+  final outputsByPath = {
+    for (final o in translationResult.outputs) o.entry.relativePath: o,
+  };
+
+  final items = <TranslationSummaryItem>[];
+
+  for (final path in translationResult.translatedPaths) {
+    final entry = entriesByPath[path];
+    final output = outputsByPath[path];
+    if (entry == null || output == null) continue;
+
+    final totalKeyCount = entry.sourceEntries.length;
+    final translatedKeyCount = output.entries.keys
+        .where(entry.sourceEntries.containsKey)
+        .length;
+
+    items.add(
+      TranslationSummaryItem(
+        type: TranslationTargetType.quest,
+        id: path,
+        displayName: path,
+        targetLanguage: targetLanguageId,
+        outputPath: path,
+        success: totalKeyCount == 0 || translatedKeyCount >= totalKeyCount,
+        translatedKeyCount: translatedKeyCount,
+        totalKeyCount: totalKeyCount,
+      ),
+    );
+  }
+
+  for (final path in translationResult.skippedPaths) {
+    final entry = entriesByPath[path];
+    if (entry == null) continue;
+
+    final keyCount = entry.sourceEntries.length;
+    items.add(
+      TranslationSummaryItem(
+        type: TranslationTargetType.quest,
+        id: path,
+        displayName: path,
+        targetLanguage: targetLanguageId,
+        outputPath: null,
+        success: true,
+        translatedKeyCount: keyCount,
+        totalKeyCount: keyCount,
+      ),
+    );
+  }
+
+  return TranslationSummary(
+    sessionId: sessionId,
+    targetLanguage: targetLanguageId,
+    createdAt: DateTime.now(),
+    items: items,
+  );
 }
 
 Future<Map<String, String>?> _loadExistingQuestEntries(

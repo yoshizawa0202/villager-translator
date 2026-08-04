@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:villager_translator/domain/common/cancellation_token.dart';
 import 'package:villager_translator/domain/customfiletranslation/custom_file_scan_entry.dart';
 import 'package:villager_translator/domain/customfiletranslation/custom_file_translation_service.dart';
 
@@ -98,6 +99,42 @@ void main() {
       );
 
       expect(result.translatedPaths, ['a.json', 'z.json']);
+    });
+
+    test('キャンセル済みの場合、現在のファイルは完了させた上で以降のファイルは処理しない(受け入れ条件5)', () async {
+      final token = CancellationToken();
+      final entryA = _jsonEntry('a.json', {'a': '1'});
+      final entryB = _jsonEntry('b.json', {'a': '1'});
+
+      final result = await translateCustomFileEntries(
+        selectedEntries: [entryA, entryB],
+        translateChunk: (chunk) async {
+          token.cancel();
+          return chunk.map((k, v) => MapEntry(k, '[訳]$v'));
+        },
+        cancellationToken: token,
+      );
+
+      expect(result.translatedPaths, ['a.json']);
+    });
+
+    test('進捗コールバックが対象1件ごとに完了件数/総件数を通知する', () async {
+      final entryA = _jsonEntry('a.json', {'a': '1'});
+      final entryB = _jsonEntry('b.json', {'a': '1'});
+      final overallUpdates = <List<int>>[];
+
+      await translateCustomFileEntries(
+        selectedEntries: [entryA, entryB],
+        translateChunk: (chunk) async =>
+            chunk.map((k, v) => MapEntry(k, '[訳]$v')),
+        onOverallProgress: (progress) =>
+            overallUpdates.add([progress.completedItems, progress.totalItems]),
+      );
+
+      expect(overallUpdates, [
+        [1, 2],
+        [2, 2],
+      ]);
     });
   });
 }

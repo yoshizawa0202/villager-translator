@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:villager_translator/domain/common/cancellation_token.dart';
 import 'package:villager_translator/domain/llm/llm_api_exception.dart';
 import 'package:villager_translator/domain/translation/retry_policy.dart';
 
@@ -154,6 +155,66 @@ void main() {
         throwsA(isA<LlmApiException>()),
       );
       expect(callCount, 1);
+    });
+
+    test('キャンセル済みの場合、実行中のチャンクは完了させた上で以降のチャンクは開始しない', () async {
+      final token = CancellationToken();
+      final chunks = [
+        {'a': '1'},
+        {'b': '2'},
+        {'c': '3'},
+      ];
+      var callCount = 0;
+
+      final results = await translateChunksWithPartialSuccess(
+        chunks,
+        translateChunk: (chunk) async {
+          callCount++;
+          if (chunk.containsKey('a')) {
+            token.cancel();
+          }
+          return {
+            for (final e in chunk.entries) e.key: '${e.value}_translated',
+          };
+        },
+        maxRetries: 1,
+        waiter: (_) async {},
+        cancellationToken: token,
+      );
+
+      expect(callCount, 1);
+      expect(results, [
+        {'a': '1_translated'},
+      ]);
+    });
+
+    test('onChunkComplete が成功・失敗を問わずチャンクごとに完了数/総数を通知する', () async {
+      final chunks = [
+        {'a': '1'},
+        {'b': '2'},
+      ];
+      final progressUpdates = <List<int>>[];
+
+      await translateChunksWithPartialSuccess(
+        chunks,
+        translateChunk: (chunk) async {
+          if (chunk.containsKey('b')) {
+            throw const LlmApiException(message: '常に失敗', statusCode: 500);
+          }
+          return {
+            for (final e in chunk.entries) e.key: '${e.value}_translated',
+          };
+        },
+        maxRetries: 1,
+        waiter: (_) async {},
+        onChunkComplete: (completed, total) =>
+            progressUpdates.add([completed, total]),
+      );
+
+      expect(progressUpdates, [
+        [1, 2],
+        [2, 2],
+      ]);
     });
   });
 }

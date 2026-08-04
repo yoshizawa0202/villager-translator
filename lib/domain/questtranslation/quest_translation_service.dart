@@ -1,3 +1,5 @@
+import '../common/cancellation_token.dart';
+import '../common/translation_progress.dart';
 import '../settings/existing_translation_policy.dart';
 import '../translation/diff_update.dart';
 import '../translation/retry_policy.dart';
@@ -51,6 +53,9 @@ Future<QuestTranslationResult> translateQuestEntries({
   required ChunkTranslator translateChunk,
   int maxRetries = 3,
   RetryWaiter waiter = _defaultWaiter,
+  CancellationToken? cancellationToken,
+  SingleFileProgressCallback? onSingleFileProgress,
+  OverallProgressCallback? onOverallProgress,
 }) async {
   final orderedEntries = selectedEntries.toList()
     ..sort((a, b) => a.relativePath.compareTo(b.relativePath));
@@ -58,10 +63,26 @@ Future<QuestTranslationResult> translateQuestEntries({
   final outputs = <QuestTranslationOutput>[];
   final translatedPaths = <String>[];
   final skippedPaths = <String>[];
+  var processedCount = 0;
+
+  void reportOverallProgress() {
+    processedCount++;
+    onOverallProgress?.call(
+      OverallProgress(
+        completedItems: processedCount,
+        totalItems: orderedEntries.length,
+      ),
+    );
+  }
 
   for (final entry in orderedEntries) {
+    if (cancellationToken?.isCancelled ?? false) {
+      break;
+    }
+
     if (entry.sourceEntries.isEmpty) {
       skippedPaths.add(entry.relativePath);
+      reportOverallProgress();
       continue;
     }
 
@@ -77,6 +98,7 @@ Future<QuestTranslationResult> translateQuestEntries({
     if (effectivePolicy == ExistingTranslationPolicy.skip) {
       if (existing != null) {
         skippedPaths.add(entry.relativePath);
+        reportOverallProgress();
         continue;
       }
       keysToTranslate = entry.sourceEntries;
@@ -88,6 +110,7 @@ Future<QuestTranslationResult> translateQuestEntries({
       );
       if (job.isSkipped) {
         skippedPaths.add(entry.relativePath);
+        reportOverallProgress();
         continue;
       }
       keysToTranslate = job.keysToTranslate;
@@ -103,6 +126,10 @@ Future<QuestTranslationResult> translateQuestEntries({
       translateChunk: translateChunk,
       maxRetries: maxRetries,
       waiter: waiter,
+      cancellationToken: cancellationToken,
+      onChunkComplete: (completed, total) => onSingleFileProgress?.call(
+        ChunkProgress(completedChunks: completed, totalChunks: total),
+      ),
     );
 
     final newlyTranslated = <String, String>{};
@@ -113,6 +140,7 @@ Future<QuestTranslationResult> translateQuestEntries({
     if (newlyTranslated.isEmpty) {
       // 唯一のチャンクがリトライを使い切った(=このファイル全体が失敗)。
       skippedPaths.add(entry.relativePath);
+      reportOverallProgress();
       continue;
     }
 
@@ -125,6 +153,7 @@ Future<QuestTranslationResult> translateQuestEntries({
 
     translatedPaths.add(entry.relativePath);
     outputs.add(QuestTranslationOutput(entry: entry, entries: finalEntries));
+    reportOverallProgress();
   }
 
   return QuestTranslationResult(

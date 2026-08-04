@@ -1,3 +1,4 @@
+import '../common/cancellation_token.dart';
 import '../llm/llm_api_exception.dart';
 
 /// チャンク1件を翻訳する関数(通常は `LlmAdapter.translate` の呼び出しを包む)。
@@ -61,18 +62,29 @@ Future<Map<String, String>> translateChunkWithRetry(
 ///
 /// 401/403 相当の認証エラーが発生した場合は、以降のチャンクも同じ理由で
 /// 失敗し続けるだけであるため、バッチ全体を中断して例外を再送出する。
+///
+/// [cancellationToken] がキャンセル済みの場合、次のチャンクを開始せずに
+/// その時点までの結果を返す(実行中のチャンクは中断しない、feature-spec.md
+/// §10、008-progress-log-history.md 受け入れ条件5)。[onChunkComplete] は
+/// 各チャンクの処理後(成功・失敗を問わず)に完了数/総数を通知する。
 Future<List<Map<String, String>>> translateChunksWithPartialSuccess(
   List<Map<String, String>> chunks, {
   required ChunkTranslator translateChunk,
   int maxRetries = 3,
   RetryWaiter waiter = _defaultWaiter,
+  CancellationToken? cancellationToken,
+  void Function(int completedChunks, int totalChunks)? onChunkComplete,
 }) async {
   final results = <Map<String, String>>[];
 
-  for (final chunk in chunks) {
+  for (var i = 0; i < chunks.length; i++) {
+    if (cancellationToken?.isCancelled ?? false) {
+      break;
+    }
+
     try {
       final translated = await translateChunkWithRetry(
-        chunk,
+        chunks[i],
         translateChunk: translateChunk,
         maxRetries: maxRetries,
         waiter: waiter,
@@ -84,6 +96,8 @@ Future<List<Map<String, String>>> translateChunksWithPartialSuccess(
       }
       // リトライ使い切り: このチャンクはスキップして次のチャンクへ進む。
     }
+
+    onChunkComplete?.call(i + 1, chunks.length);
   }
 
   return results;

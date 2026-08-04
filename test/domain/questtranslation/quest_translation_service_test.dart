@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:villager_translator/domain/common/cancellation_token.dart';
 import 'package:villager_translator/domain/questtranslation/quest_scan_entry.dart';
 import 'package:villager_translator/domain/questtranslation/quest_translation_service.dart';
 import 'package:villager_translator/domain/settings/existing_translation_policy.dart';
@@ -140,6 +141,48 @@ void main() {
 
       expect(result.skippedPaths, [entry.relativePath]);
       expect(result.outputs, isEmpty);
+    });
+
+    test('キャンセル済みの場合、現在のファイルは完了させた上で以降のファイルは処理しない(受け入れ条件5)', () async {
+      final token = CancellationToken();
+      final entryA = _jsonEntry('a.json', {'a': '1'});
+      final entryB = _jsonEntry('b.json', {'a': '1'});
+
+      final result = await translateQuestEntries(
+        selectedEntries: [entryA, entryB],
+        policy: ExistingTranslationPolicy.retranslateAll,
+        loadExistingTargetEntries: (_) async => null,
+        translateChunk: (chunk) async {
+          // entryA のチャンク翻訳が完了する直前にキャンセルする
+          // (「実行中のチャンクは中断しない」ことを確認するため)。
+          token.cancel();
+          return chunk.map((k, v) => MapEntry(k, '[訳]$v'));
+        },
+        cancellationToken: token,
+      );
+
+      expect(result.translatedPaths, ['a.json']);
+    });
+
+    test('進捗コールバックが対象1件ごとに完了件数/総件数を通知する', () async {
+      final entryA = _jsonEntry('a.json', {'a': '1'});
+      final entryB = _jsonEntry('b.json', {'a': '1'});
+      final overallUpdates = <List<int>>[];
+
+      await translateQuestEntries(
+        selectedEntries: [entryA, entryB],
+        policy: ExistingTranslationPolicy.retranslateAll,
+        loadExistingTargetEntries: (_) async => null,
+        translateChunk: (chunk) async =>
+            chunk.map((k, v) => MapEntry(k, '[訳]$v')),
+        onOverallProgress: (progress) =>
+            overallUpdates.add([progress.completedItems, progress.totalItems]),
+      );
+
+      expect(overallUpdates, [
+        [1, 2],
+        [2, 2],
+      ]);
     });
   });
 }

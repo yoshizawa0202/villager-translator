@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 
 import '../../domain/questtranslation/quest_scan_entry.dart';
+import '../common/session_paths.dart';
 
 /// 翻訳前に選択した SNBT ファイルを、セッションディレクトリ配下の
 /// `logs/localizer/{sessionId}/backup/snbt_original/` へバックアップする
@@ -17,16 +18,10 @@ Future<Directory> backupSnbtOriginals({
   required List<QuestScanEntry> entries,
   required String sessionId,
 }) async {
-  final backupDirectory = Directory(
-    p.join(
-      profileDirectory.path,
-      'logs',
-      'localizer',
-      sessionId,
-      'backup',
-      'snbt_original',
-    ),
-  );
+  final backupDirectory = SessionPaths(
+    profileDirectory: profileDirectory,
+    sessionId: sessionId,
+  ).backupSubdirectory('snbt_original');
   await backupDirectory.create(recursive: true);
 
   for (final entry in entries) {

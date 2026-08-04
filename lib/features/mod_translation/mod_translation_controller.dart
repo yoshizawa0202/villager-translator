@@ -2,9 +2,15 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 
+import '../../domain/common/cancellation_token.dart';
+import '../../domain/common/session_id.dart';
+import '../../domain/common/translation_progress.dart';
 import '../../domain/settings/supported_language.dart';
+import '../../infrastructure/common/session_logger.dart';
+import '../../infrastructure/common/system_notifier.dart';
 import '../../infrastructure/modtranslation/mod_translation_orchestrator.dart';
 import '../settings/settings_controller.dart';
+import '../shell/profile_directory_controller.dart';
 
 /// MOD タブの状態遷移(feature-spec.md §3.1〜3.2、本仕様(004)の対象範囲)。
 ///
@@ -15,9 +21,6 @@ enum ModTabState { notSelected, scanning, scanned, translating, completed }
 /// テーブルのソート対象列。
 enum ModTableSortColumn { name, id, path, format }
 
-String _defaultSessionId() =>
-    DateTime.now().toIso8601String().replaceAll(RegExp(r'[:.]'), '-');
-
 /// MOD タブの状態を保持し、スキャン・選択・翻訳を統括する
 /// (feature-spec.md §3.1〜3.2、§6)。
 class ModTranslationController extends ChangeNotifier {
@@ -25,19 +28,41 @@ class ModTranslationController extends ChangeNotifier {
     required SettingsController settingsController,
     ModTranslationOrchestrator? orchestrator,
     String Function()? sessionIdGenerator,
+    SessionLogger? sessionLogger,
+    SystemNotifier? systemNotifier,
+    ProfileDirectoryController? profileDirectoryController,
   }) : _settingsController = settingsController,
        _orchestrator = orchestrator ?? ModTranslationOrchestrator(),
-       _sessionIdGenerator = sessionIdGenerator ?? _defaultSessionId;
+       _sessionIdGenerator = sessionIdGenerator ?? defaultSessionId,
+       _sessionLogger = sessionLogger ?? SessionLogger(),
+       _systemNotifier = systemNotifier ?? const NoopSystemNotifier(),
+       _profileDirectoryController =
+           profileDirectoryController ?? ProfileDirectoryController() {
+    _profileDirectoryController.addListener(_onProfileDirectoryChanged);
+  }
 
   final SettingsController _settingsController;
   final ModTranslationOrchestrator _orchestrator;
   final String Function() _sessionIdGenerator;
+  final SessionLogger _sessionLogger;
+  final SystemNotifier _systemNotifier;
+  final ProfileDirectoryController _profileDirectoryController;
+
+  SessionLogger get sessionLogger => _sessionLogger;
+
+  CancellationToken? _cancellationToken;
+
+  OverallProgress? _overallProgress;
+  OverallProgress? get overallProgress => _overallProgress;
+
+  ChunkProgress? _singleFileProgress;
+  ChunkProgress? get singleFileProgress => _singleFileProgress;
 
   ModTabState _state = ModTabState.notSelected;
   ModTabState get state => _state;
 
-  Directory? _profileDirectory;
-  Directory? get profileDirectory => _profileDirectory;
+  Directory? get profileDirectory =>
+      _profileDirectoryController.profileDirectory;
 
   ModScanResult? _scanResult;
   ModScanResult? get scanResult => _scanResult;
@@ -95,9 +120,14 @@ class ModTranslationController extends ChangeNotifier {
     return filtered;
   }
 
-  /// プロファイルディレクトリを設定する。以前のスキャン結果・選択状態は破棄する。
+  /// プロファイルディレクトリを設定する(全タブで共有、feature-spec.md §3.2)。
   void setProfileDirectoryPath(String path) {
-    _profileDirectory = Directory(path);
+    _profileDirectoryController.setPath(path);
+  }
+
+  /// 共有プロファイルディレクトリの変更(このタブでの変更を含む)を受けて、
+  /// 以前のスキャン結果・選択状態を破棄する。
+  void _onProfileDirectoryChanged() {
     _scanResult = null;
     _selectedModIds.clear();
     _errorMessage = null;
@@ -148,7 +178,7 @@ class ModTranslationController extends ChangeNotifier {
 
   /// `{プロファイル}/mods/` をスキャンする(feature-spec.md §6.1)。
   Future<void> scan() async {
-    final directory = _profileDirectory;
+    final directory = profileDirectory;
     if (directory == null) return;
 
     _state = ModTabState.scanning;
@@ -175,7 +205,7 @@ class ModTranslationController extends ChangeNotifier {
 
   /// 選択された MOD を翻訳し、リソースパックを生成する(feature-spec.md §6.2)。
   Future<void> translate() async {
-    final directory = _profileDirectory;
+    final directory = profileDirectory;
     final scan = _scanResult;
     if (directory == null || scan == null) return;
 
@@ -195,9 +225,26 @@ class ModTranslationController extends ChangeNotifier {
       ),
     );
 
+    final sessionId = _sessionIdGenerator();
+    final token = CancellationToken();
+    _cancellationToken = token;
+    _overallProgress = null;
+    _singleFileProgress = null;
+
     _state = ModTabState.translating;
     _errorMessage = null;
     notifyListeners();
+
+    await _sessionLogger.beginSession(
+      profileDirectory: directory,
+      sessionId: sessionId,
+    );
+    _sessionLogger.log(
+      LogLevel.info,
+      'translate',
+      '翻訳を開始しました(対象 ${selected.length} 件、言語 $_targetLanguageId)',
+      isMilestone: true,
+    );
 
     try {
       final result = await _orchestrator.translateAndPack(
@@ -207,14 +254,58 @@ class ModTranslationController extends ChangeNotifier {
         targetLanguageDisplayName: targetLanguage.displayName,
         settings: settings,
         apiKey: apiKey,
-        sessionId: _sessionIdGenerator(),
+        sessionId: sessionId,
+        cancellationToken: token,
+        onSingleFileProgress: (progress) {
+          _singleFileProgress = progress;
+          notifyListeners();
+        },
+        onOverallProgress: (progress) {
+          _overallProgress = progress;
+          _sessionLogger.log(LogLevel.info, 'translate', progress.label);
+          notifyListeners();
+        },
       );
       _lastResult = result;
       _state = ModTabState.completed;
+      _sessionLogger.log(
+        LogLevel.info,
+        'translate',
+        '翻訳が完了しました(成功 ${result.summary.successCount} / '
+            '失敗 ${result.summary.failureCount} / 合計 ${result.summary.totalCount})',
+        isMilestone: true,
+      );
+      await _systemNotifier.showTranslationCompleted(
+        title: 'MOD 翻訳が完了しました',
+        body:
+            '成功 ${result.summary.successCount} / 失敗 ${result.summary.failureCount} / '
+            '合計 ${result.summary.totalCount} 件',
+      );
     } catch (e) {
       _errorMessage = '翻訳に失敗しました: $e';
       _state = ModTabState.scanned;
+      _sessionLogger.log(
+        LogLevel.error,
+        'translate',
+        _errorMessage!,
+        isMilestone: true,
+      );
+    } finally {
+      _cancellationToken = null;
+      await _sessionLogger.endSession();
     }
     notifyListeners();
+  }
+
+  /// 実行中の翻訳をキャンセルする(協調的キャンセル、feature-spec.md §10)。
+  void cancel() {
+    _cancellationToken?.cancel();
+  }
+
+  @override
+  void dispose() {
+    _profileDirectoryController.removeListener(_onProfileDirectoryChanged);
+    _sessionLogger.dispose();
+    super.dispose();
   }
 }

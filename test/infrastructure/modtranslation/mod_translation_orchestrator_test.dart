@@ -1,12 +1,15 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
+import 'package:villager_translator/domain/common/cancellation_token.dart';
 import 'package:villager_translator/domain/llm/llm_adapter.dart';
 import 'package:villager_translator/domain/llm/llm_adapter_config.dart';
 import 'package:villager_translator/domain/llm/llm_provider.dart';
 import 'package:villager_translator/domain/settings/app_settings.dart';
 import 'package:villager_translator/domain/settings/existing_translation_policy.dart';
+import 'package:villager_translator/infrastructure/common/session_paths.dart';
 import 'package:villager_translator/infrastructure/llm/llm_adapter_factory.dart';
 import 'package:villager_translator/infrastructure/llm/mock_llm_adapter.dart';
 import 'package:villager_translator/infrastructure/modtranslation/mod_translation_orchestrator.dart';
@@ -125,6 +128,56 @@ void main() {
       await File(p.join(tempDir.path, 'mods', 'modb.jar')).readAsBytes(),
       equals(beforeBytesB),
     );
+
+    // 受け入れ条件12: translation_summary.json がセッションディレクトリへ書き出される。
+    expect(result.summary.sessionId, '20260803-120000');
+    expect(result.summary.items.map((i) => i.id).toSet(), {'moda', 'modb'});
+    expect(result.summary.items.every((i) => i.success), isTrue);
+
+    final summaryFile = SessionPaths(
+      profileDirectory: tempDir,
+      sessionId: '20260803-120000',
+    ).summaryFile;
+    expect(await summaryFile.exists(), isTrue);
+    final summaryJson =
+        jsonDecode(await summaryFile.readAsString()) as Map<String, dynamic>;
+    expect(summaryJson['sessionId'], '20260803-120000');
+  });
+
+  test('キャンセルすると実行中の MOD の完了後、以降の MOD は処理されない(受け入れ条件5)', () async {
+    await writeFakeJar(File(p.join(tempDir.path, 'mods', 'moda.jar')), {
+      'fabric.mod.json': '{"id": "moda", "name": "Mod A", "version": "1.0"}',
+      'assets/moda/lang/en_us.json': '{"item.a": "Item A"}',
+    });
+    await writeFakeJar(File(p.join(tempDir.path, 'mods', 'modb.jar')), {
+      'fabric.mod.json': '{"id": "modb", "name": "Mod B", "version": "1.0"}',
+      'assets/modb/lang/en_us.json': '{"item.c": "Item C"}',
+    });
+
+    final orchestrator = ModTranslationOrchestrator(
+      adapterFactory: _FakeAdapterFactory(),
+    );
+    final scanResult = await orchestrator.scan(
+      profileDirectory: tempDir,
+      targetLanguageId: 'ja_jp',
+    );
+
+    final token = CancellationToken();
+    final result = await orchestrator.translateAndPack(
+      profileDirectory: tempDir,
+      selectedEntries: scanResult.entries,
+      targetLanguageId: 'ja_jp',
+      targetLanguageDisplayName: '日本語',
+      settings: AppSettings.defaults(),
+      apiKey: 'test-key',
+      sessionId: '20260803-120002',
+      cancellationToken: token,
+      onOverallProgress: (progress) {
+        if (progress.completedItems == 1) token.cancel();
+      },
+    );
+
+    expect(result.translationResult.translatedModIds, ['moda']);
   });
 
   test('全対象がスキップの場合、リソースパックが作成されない(受け入れ条件11)', () async {

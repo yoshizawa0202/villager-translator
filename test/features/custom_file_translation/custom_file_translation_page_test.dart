@@ -89,12 +89,12 @@ void main() {
     expect(scanButtonBefore.onPressed, isNull);
 
     await tester.enterText(
-      find.byKey(const Key('rootDirectoryField')),
+      find.byKey(const Key('profileDirectoryField')),
       tempDir.path,
     );
     await tester.testTextInput.receiveAction(TextInputAction.done);
     await tester.pumpAndSettle();
-    expect(controller.rootDirectory!.path, tempDir.path);
+    expect(controller.profileDirectory!.path, tempDir.path);
 
     await tester.runAsync(() => controller.scan());
     await tester.pumpAndSettle();

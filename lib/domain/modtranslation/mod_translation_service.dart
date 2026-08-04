@@ -1,3 +1,5 @@
+import '../common/cancellation_token.dart';
+import '../common/translation_progress.dart';
 import '../settings/existing_translation_policy.dart';
 import '../translation/diff_update.dart';
 import '../translation/lang_codec.dart';
@@ -73,14 +75,22 @@ Future<ModTranslationResult> translateSelectedMods({
   required ChunkTranslator translateChunk,
   int maxRetries = 3,
   RetryWaiter waiter = _defaultWaiter,
+  CancellationToken? cancellationToken,
+  SingleFileProgressCallback? onSingleFileProgress,
+  OverallProgressCallback? onOverallProgress,
 }) async {
   final orderedEntries = sortModEntriesById(selectedEntries);
 
   final outputs = <ModTranslationOutput>[];
   final translatedModIds = <String>[];
   final skippedModIds = <String>[];
+  var processedCount = 0;
 
   for (final entry in orderedEntries) {
+    if (cancellationToken?.isCancelled ?? false) {
+      break;
+    }
+
     final existing = await loadExistingTargetEntries(entry);
 
     final Map<String, String> keysToTranslate;
@@ -89,6 +99,13 @@ Future<ModTranslationResult> translateSelectedMods({
     if (policy == ExistingTranslationPolicy.skip) {
       if (existing != null) {
         skippedModIds.add(entry.modInfo.id);
+        processedCount++;
+        onOverallProgress?.call(
+          OverallProgress(
+            completedItems: processedCount,
+            totalItems: orderedEntries.length,
+          ),
+        );
         continue;
       }
       keysToTranslate = entry.sourceEntries;
@@ -100,6 +117,13 @@ Future<ModTranslationResult> translateSelectedMods({
       );
       if (job.isSkipped) {
         skippedModIds.add(entry.modInfo.id);
+        processedCount++;
+        onOverallProgress?.call(
+          OverallProgress(
+            completedItems: processedCount,
+            totalItems: orderedEntries.length,
+          ),
+        );
         continue;
       }
       keysToTranslate = job.keysToTranslate;
@@ -115,6 +139,10 @@ Future<ModTranslationResult> translateSelectedMods({
       translateChunk: translateChunk,
       maxRetries: maxRetries,
       waiter: waiter,
+      cancellationToken: cancellationToken,
+      onChunkComplete: (completed, total) => onSingleFileProgress?.call(
+        ChunkProgress(completedChunks: completed, totalChunks: total),
+      ),
     );
 
     final newlyTranslated = <String, String>{};
@@ -135,6 +163,13 @@ Future<ModTranslationResult> translateSelectedMods({
         modId: entry.modInfo.id,
         format: entry.langFormat,
         entries: finalEntries,
+      ),
+    );
+    processedCount++;
+    onOverallProgress?.call(
+      OverallProgress(
+        completedItems: processedCount,
+        totalItems: orderedEntries.length,
       ),
     );
   }

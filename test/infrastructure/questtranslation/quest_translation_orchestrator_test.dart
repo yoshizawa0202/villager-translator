@@ -61,6 +61,9 @@ void main() {
     expect(result.translationResult.translatedPaths, [
       'kubejs/assets/kubejs/lang/en_us.json',
     ]);
+    // 受け入れ条件12: 翻訳履歴サマリが実行のたびに生成される。
+    expect(result.summary.sessionId, '20260803-120000');
+    expect(result.summary.items.single.success, isTrue);
 
     final kubejsContent = await File(
       p.joinAll([

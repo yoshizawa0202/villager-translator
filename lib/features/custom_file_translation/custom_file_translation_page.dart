@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 
 import '../../infrastructure/customfiletranslation/custom_file_translation_orchestrator.dart';
 import '../settings/settings_controller.dart';
+import '../shell/widgets/log_viewer_dialog.dart';
+import '../shell/widgets/translation_completion_dialog.dart';
 import 'custom_file_translation_controller.dart';
 
 /// カスタムファイルタブ画面(feature-spec.md §9)。
@@ -22,32 +24,70 @@ class CustomFileTranslationPage extends StatelessWidget {
     if (controller != null) {
       return ChangeNotifierProvider<CustomFileTranslationController>.value(
         value: controller!,
-        child: const _CustomFileTranslationView(),
+        child: Scaffold(
+          appBar: AppBar(title: const Text('カスタムファイル翻訳')),
+          body: const CustomFileTranslationTabView(),
+        ),
       );
     }
     return ChangeNotifierProvider<CustomFileTranslationController>(
       create: (context) => CustomFileTranslationController(
         settingsController: context.read<SettingsController>(),
       ),
-      child: const _CustomFileTranslationView(),
+      child: Scaffold(
+        appBar: AppBar(title: const Text('カスタムファイル翻訳')),
+        body: const CustomFileTranslationTabView(),
+      ),
     );
   }
 }
 
-class _CustomFileTranslationView extends StatefulWidget {
-  const _CustomFileTranslationView();
+/// カスタムファイルタブの中身(4タブ統合シェル([MainShellPage])のタブ本体としても使う)。
+///
+/// 独自の `Scaffold`/`AppBar` は持たない。
+class CustomFileTranslationTabView extends StatefulWidget {
+  const CustomFileTranslationTabView({super.key});
 
   @override
-  State<_CustomFileTranslationView> createState() =>
-      _CustomFileTranslationViewState();
+  State<CustomFileTranslationTabView> createState() =>
+      CustomFileTranslationTabViewState();
 }
 
-class _CustomFileTranslationViewState
-    extends State<_CustomFileTranslationView> {
+class CustomFileTranslationTabViewState
+    extends State<CustomFileTranslationTabView> {
   final _directoryController = TextEditingController();
+  late final CustomFileTranslationController _controller;
+  CustomFileTranslateAndWriteResult? _lastShownResult;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = context.read<CustomFileTranslationController>();
+    _controller.addListener(_onControllerChanged);
+  }
+
+  void _onControllerChanged() {
+    if (!mounted) return;
+    final result = _controller.lastResult;
+    if (_controller.state == CustomFileTabState.completed &&
+        result != null &&
+        !identical(result, _lastShownResult)) {
+      _lastShownResult = result;
+      TranslationCompletionDialog.show(
+        context,
+        summary: result.summary,
+        onShowLog: () => LogViewerDialog.show(
+          context,
+          logger: _controller.sessionLogger,
+          isBusy: false,
+        ),
+      );
+    }
+  }
 
   @override
   void dispose() {
+    _controller.removeListener(_onControllerChanged);
     _directoryController.dispose();
     super.dispose();
   }
@@ -58,89 +98,86 @@ class _CustomFileTranslationViewState
     final settings = context.watch<SettingsController>().settings;
 
     final canScan =
-        controller.rootDirectory != null &&
+        controller.profileDirectory != null &&
         controller.state != CustomFileTabState.scanning &&
         controller.state != CustomFileTabState.translating;
     final canTranslate =
         controller.state == CustomFileTabState.scanned &&
         controller.selectedPaths.isNotEmpty;
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('カスタムファイル翻訳')),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _RootDirectoryRow(directoryController: _directoryController),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: DropdownButtonFormField<String>(
-                    key: const Key('targetLanguageSelector'),
-                    initialValue: controller.targetLanguageId,
-                    decoration: const InputDecoration(labelText: '対象言語'),
-                    items: settings.translation.allLanguages
-                        .map(
-                          (l) => DropdownMenuItem(
-                            value: l.id,
-                            child: Text(l.displayName),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (value) {
-                      if (value != null) controller.setTargetLanguageId(value);
-                    },
-                  ),
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _ProfileDirectoryRow(directoryController: _directoryController),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: DropdownButtonFormField<String>(
+                  key: const Key('targetLanguageSelector'),
+                  initialValue: controller.targetLanguageId,
+                  decoration: const InputDecoration(labelText: '対象言語'),
+                  items: settings.translation.allLanguages
+                      .map(
+                        (l) => DropdownMenuItem(
+                          value: l.id,
+                          child: Text(l.displayName),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) {
+                    if (value != null) controller.setTargetLanguageId(value);
+                  },
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: TextField(
-                    key: const Key('searchField'),
-                    decoration: const InputDecoration(labelText: '検索(パスの部分一致)'),
-                    onChanged: controller.setSearchQuery,
-                  ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: TextField(
+                  key: const Key('searchField'),
+                  decoration: const InputDecoration(labelText: '検索(パスの部分一致)'),
+                  onChanged: controller.setSearchQuery,
                 ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                ElevatedButton(
-                  key: const Key('scanButton'),
-                  onPressed: canScan ? controller.scan : null,
-                  child: const Text('スキャン'),
-                ),
-                const SizedBox(width: 12),
-                ElevatedButton(
-                  key: const Key('translateButton'),
-                  onPressed: canTranslate ? controller.translate : null,
-                  child: const Text('翻訳'),
-                ),
-                const SizedBox(width: 16),
-                Text(
-                  _stateLabel(controller.state),
-                  key: const Key('customFileTabStateLabel'),
-                ),
-              ],
-            ),
-            if (controller.errorMessage != null) ...[
-              const SizedBox(height: 8),
-              Text(
-                controller.errorMessage!,
-                key: const Key('customFileTabErrorMessage'),
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
             ],
-            if (controller.lastResult != null) ...[
-              const SizedBox(height: 8),
-              _ResultSummary(result: controller.lastResult!),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              ElevatedButton(
+                key: const Key('scanButton'),
+                onPressed: canScan ? controller.scan : null,
+                child: const Text('スキャン'),
+              ),
+              const SizedBox(width: 12),
+              ElevatedButton(
+                key: const Key('translateButton'),
+                onPressed: canTranslate ? controller.translate : null,
+                child: const Text('翻訳'),
+              ),
+              const SizedBox(width: 16),
+              Text(
+                _stateLabel(controller.state),
+                key: const Key('customFileTabStateLabel'),
+              ),
             ],
-            const SizedBox(height: 16),
-            Expanded(child: _CustomFileTable(controller: controller)),
+          ),
+          if (controller.errorMessage != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              controller.errorMessage!,
+              key: const Key('customFileTabErrorMessage'),
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
           ],
-        ),
+          if (controller.lastResult != null) ...[
+            const SizedBox(height: 8),
+            _ResultSummary(result: controller.lastResult!),
+          ],
+          const SizedBox(height: 16),
+          Expanded(child: _CustomFileTable(controller: controller)),
+        ],
       ),
     );
   }
@@ -161,8 +198,8 @@ class _CustomFileTranslationViewState
   }
 }
 
-class _RootDirectoryRow extends StatelessWidget {
-  const _RootDirectoryRow({required this.directoryController});
+class _ProfileDirectoryRow extends StatelessWidget {
+  const _ProfileDirectoryRow({required this.directoryController});
 
   final TextEditingController directoryController;
 
@@ -174,10 +211,10 @@ class _RootDirectoryRow extends StatelessWidget {
       children: [
         Expanded(
           child: TextField(
-            key: const Key('rootDirectoryField'),
+            key: const Key('profileDirectoryField'),
             controller: directoryController,
-            decoration: const InputDecoration(labelText: '対象ディレクトリ'),
-            onSubmitted: controller.setRootDirectoryPath,
+            decoration: const InputDecoration(labelText: 'プロファイルディレクトリ'),
+            onSubmitted: controller.setProfileDirectoryPath,
           ),
         ),
         const SizedBox(width: 12),
@@ -187,7 +224,7 @@ class _RootDirectoryRow extends StatelessWidget {
             final path = await getDirectoryPath();
             if (path != null) {
               directoryController.text = path;
-              controller.setRootDirectoryPath(path);
+              controller.setProfileDirectoryPath(path);
             }
           },
           child: const Text('参照'),

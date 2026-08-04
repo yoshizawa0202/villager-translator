@@ -2,9 +2,15 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 
+import '../../domain/common/cancellation_token.dart';
+import '../../domain/common/session_id.dart';
+import '../../domain/common/translation_progress.dart';
 import '../../domain/settings/supported_language.dart';
+import '../../infrastructure/common/session_logger.dart';
+import '../../infrastructure/common/system_notifier.dart';
 import '../../infrastructure/customfiletranslation/custom_file_translation_orchestrator.dart';
 import '../settings/settings_controller.dart';
+import '../shell/profile_directory_controller.dart';
 
 /// カスタムファイルタブの状態遷移(`004-mod-translation.md` の MOD タブと同様の方針)。
 ///
@@ -27,17 +33,42 @@ class CustomFileTranslationController extends ChangeNotifier {
   CustomFileTranslationController({
     required SettingsController settingsController,
     CustomFileTranslationOrchestrator? orchestrator,
+    String Function()? sessionIdGenerator,
+    SessionLogger? sessionLogger,
+    SystemNotifier? systemNotifier,
+    ProfileDirectoryController? profileDirectoryController,
   }) : _settingsController = settingsController,
-       _orchestrator = orchestrator ?? CustomFileTranslationOrchestrator();
+       _orchestrator = orchestrator ?? CustomFileTranslationOrchestrator(),
+       _sessionIdGenerator = sessionIdGenerator ?? defaultSessionId,
+       _sessionLogger = sessionLogger ?? SessionLogger(),
+       _systemNotifier = systemNotifier ?? const NoopSystemNotifier(),
+       _profileDirectoryController =
+           profileDirectoryController ?? ProfileDirectoryController() {
+    _profileDirectoryController.addListener(_onProfileDirectoryChanged);
+  }
 
   final SettingsController _settingsController;
   final CustomFileTranslationOrchestrator _orchestrator;
+  final String Function() _sessionIdGenerator;
+  final SessionLogger _sessionLogger;
+  final SystemNotifier _systemNotifier;
+  final ProfileDirectoryController _profileDirectoryController;
+
+  SessionLogger get sessionLogger => _sessionLogger;
+
+  CancellationToken? _cancellationToken;
+
+  OverallProgress? _overallProgress;
+  OverallProgress? get overallProgress => _overallProgress;
+
+  ChunkProgress? _singleFileProgress;
+  ChunkProgress? get singleFileProgress => _singleFileProgress;
 
   CustomFileTabState _state = CustomFileTabState.notSelected;
   CustomFileTabState get state => _state;
 
-  Directory? _rootDirectory;
-  Directory? get rootDirectory => _rootDirectory;
+  Directory? get profileDirectory =>
+      _profileDirectoryController.profileDirectory;
 
   List<CustomFileScanEntry>? _scanResult;
   List<CustomFileScanEntry>? get scanResult => _scanResult;
@@ -87,9 +118,15 @@ class CustomFileTranslationController extends ChangeNotifier {
     return filtered;
   }
 
-  /// スキャン対象のルートディレクトリを設定する。以前のスキャン結果・選択状態は破棄する。
-  void setRootDirectoryPath(String path) {
-    _rootDirectory = Directory(path);
+  /// プロファイルディレクトリを設定する(全タブで共有、feature-spec.md §3.2)。
+  /// このディレクトリ配下を再帰的にスキャン対象とする。
+  void setProfileDirectoryPath(String path) {
+    _profileDirectoryController.setPath(path);
+  }
+
+  /// 共有プロファイルディレクトリの変更(このタブでの変更を含む)を受けて、
+  /// 以前のスキャン結果・選択状態を破棄する。
+  void _onProfileDirectoryChanged() {
     _scanResult = null;
     _selectedPaths.clear();
     _errorMessage = null;
@@ -140,7 +177,7 @@ class CustomFileTranslationController extends ChangeNotifier {
 
   /// ルートディレクトリ配下の `.json` `.snbt` を再帰的にスキャンする(feature-spec.md §9)。
   Future<void> scan() async {
-    final directory = _rootDirectory;
+    final directory = profileDirectory;
     if (directory == null) return;
 
     _state = CustomFileTabState.scanning;
@@ -164,8 +201,9 @@ class CustomFileTranslationController extends ChangeNotifier {
 
   /// 選択されたカスタムファイルを翻訳し、`translated/` 配下へ書き出す(feature-spec.md §9)。
   Future<void> translate() async {
+    final directory = profileDirectory;
     final scan = _scanResult;
-    if (scan == null) return;
+    if (directory == null || scan == null) return;
 
     final selected = scan
         .where((e) => _selectedPaths.contains(e.relativePath))
@@ -183,24 +221,87 @@ class CustomFileTranslationController extends ChangeNotifier {
       ),
     );
 
+    final sessionId = _sessionIdGenerator();
+    final token = CancellationToken();
+    _cancellationToken = token;
+    _overallProgress = null;
+    _singleFileProgress = null;
+
     _state = CustomFileTabState.translating;
     _errorMessage = null;
     notifyListeners();
 
+    await _sessionLogger.beginSession(
+      profileDirectory: directory,
+      sessionId: sessionId,
+    );
+    _sessionLogger.log(
+      LogLevel.info,
+      'translate',
+      '翻訳を開始しました(対象 ${selected.length} 件、言語 $_targetLanguageId)',
+      isMilestone: true,
+    );
+
     try {
       final result = await _orchestrator.translateAndWrite(
+        profileDirectory: directory,
         selectedEntries: selected,
         targetLanguageId: _targetLanguageId,
         targetLanguageDisplayName: targetLanguage.displayName,
         settings: settings,
         apiKey: apiKey,
+        sessionId: sessionId,
+        cancellationToken: token,
+        onSingleFileProgress: (progress) {
+          _singleFileProgress = progress;
+          notifyListeners();
+        },
+        onOverallProgress: (progress) {
+          _overallProgress = progress;
+          _sessionLogger.log(LogLevel.info, 'translate', progress.label);
+          notifyListeners();
+        },
       );
       _lastResult = result;
       _state = CustomFileTabState.completed;
+      _sessionLogger.log(
+        LogLevel.info,
+        'translate',
+        '翻訳が完了しました(成功 ${result.summary.successCount} / '
+            '失敗 ${result.summary.failureCount} / 合計 ${result.summary.totalCount})',
+        isMilestone: true,
+      );
+      await _systemNotifier.showTranslationCompleted(
+        title: 'カスタムファイル翻訳が完了しました',
+        body:
+            '成功 ${result.summary.successCount} / 失敗 ${result.summary.failureCount} / '
+            '合計 ${result.summary.totalCount} 件',
+      );
     } catch (e) {
       _errorMessage = '翻訳に失敗しました: $e';
       _state = CustomFileTabState.scanned;
+      _sessionLogger.log(
+        LogLevel.error,
+        'translate',
+        _errorMessage!,
+        isMilestone: true,
+      );
+    } finally {
+      _cancellationToken = null;
+      await _sessionLogger.endSession();
     }
     notifyListeners();
+  }
+
+  /// 実行中の翻訳をキャンセルする(協調的キャンセル、feature-spec.md §10)。
+  void cancel() {
+    _cancellationToken?.cancel();
+  }
+
+  @override
+  void dispose() {
+    _profileDirectoryController.removeListener(_onProfileDirectoryChanged);
+    _sessionLogger.dispose();
+    super.dispose();
   }
 }

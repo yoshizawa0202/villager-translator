@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:villager_translator/domain/llm/llm_provider.dart';
+import 'package:villager_translator/domain/settings/app_settings.dart';
 import 'package:villager_translator/features/settings/settings_controller.dart';
 import 'package:villager_translator/infrastructure/settings/settings_repository.dart';
 
@@ -94,6 +95,26 @@ void main() {
       );
       expect(controller.apiKeyFor(LlmProvider.openai), 'secret-key');
       expect(await apiKeyStore.read(LlmProvider.openai), 'secret-key');
+    });
+  });
+
+  group('SettingsController.setThemeMode', () {
+    test('テーマ切替が保存され、再読み込みでも反映される', () async {
+      final controller = SettingsController(
+        repository: repository,
+        apiKeyStore: InMemoryApiKeyStore(),
+      );
+      await controller.load();
+
+      await controller.setThemeMode(AppThemeMode.dark);
+      expect(controller.settings.themeMode, AppThemeMode.dark);
+
+      final reloaded = SettingsController(
+        repository: repository,
+        apiKeyStore: InMemoryApiKeyStore(),
+      );
+      await reloaded.load();
+      expect(reloaded.settings.themeMode, AppThemeMode.dark);
     });
   });
 
