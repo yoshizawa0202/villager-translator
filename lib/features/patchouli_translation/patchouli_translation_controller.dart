@@ -35,12 +35,17 @@ class PatchouliTranslationController extends ChangeNotifier {
     PatchouliTranslationOrchestrator? orchestrator,
     String Function()? sessionIdGenerator,
     SessionLogger? sessionLogger,
+    Directory? applicationSupportDirectory,
     SystemNotifier? systemNotifier,
     ProfileDirectoryController? profileDirectoryController,
   }) : _settingsController = settingsController,
        _orchestrator = orchestrator ?? PatchouliTranslationOrchestrator(),
        _sessionIdGenerator = sessionIdGenerator ?? defaultSessionId,
-       _sessionLogger = sessionLogger ?? SessionLogger(),
+       _sessionLogger =
+           sessionLogger ??
+           SessionLogger(
+             applicationSupportDirectory: applicationSupportDirectory,
+           ),
        _systemNotifier = systemNotifier ?? const NoopSystemNotifier(),
        _profileDirectoryController =
            profileDirectoryController ?? ProfileDirectoryController() {
@@ -265,9 +270,25 @@ class PatchouliTranslationController extends ChangeNotifier {
           _sessionLogger.log(LogLevel.info, 'translate', progress.label);
           notifyListeners();
         },
+        onChunkResult: (itemLabel, chunkResult) {
+          _sessionLogger.log(
+            chunkResult.success
+                ? (chunkResult.retryCount > 0
+                      ? LogLevel.warning
+                      : LogLevel.debug)
+                : LogLevel.error,
+            'translate.chunk',
+            '[$itemLabel] チャンク ${chunkResult.chunkIndex + 1}/'
+                '${chunkResult.totalChunks} '
+                '${chunkResult.success ? '成功' : '失敗'}'
+                '(${chunkResult.keyCount} キー、リトライ ${chunkResult.retryCount} 回)'
+                '${chunkResult.error != null ? ': ${chunkResult.error}' : ''}',
+          );
+        },
       );
       _lastResult = result;
       _state = PatchouliTabState.completed;
+      _sessionLogger.logSummaryItems(result.summary);
       _sessionLogger.log(
         LogLevel.info,
         'translate',

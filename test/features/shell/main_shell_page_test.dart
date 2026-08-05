@@ -265,4 +265,110 @@ void main() {
 
     expect(find.byKey(const Key('translationRunningNotice')), findsNothing);
   });
+
+  testWidgets('applicationSupportDirectory が未指定の場合はアプリケーションログボタンを表示しない(Issue#10)', (
+    tester,
+  ) async {
+    final settingsController = await _buildSettingsController();
+    final shared = ProfileDirectoryController();
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<SettingsController>.value(
+            value: settingsController,
+          ),
+        ],
+        child: MaterialApp(
+          home: MainShellPage(
+            profileDirectoryController: shared,
+            modController: ModTranslationController(
+              settingsController: settingsController,
+              profileDirectoryController: shared,
+            ),
+            questController: QuestTranslationController(
+              settingsController: settingsController,
+              profileDirectoryController: shared,
+            ),
+            patchouliController: PatchouliTranslationController(
+              settingsController: settingsController,
+              profileDirectoryController: shared,
+            ),
+            customFileController: CustomFileTranslationController(
+              settingsController: settingsController,
+              profileDirectoryController: shared,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('openApplicationLogHistoryButton')),
+      findsNothing,
+    );
+  });
+
+  testWidgets('applicationSupportDirectory を指定するとアプリケーションログの履歴ダイアログを開ける(Issue#10)', (
+    tester,
+  ) async {
+    final settingsController = await _buildSettingsController();
+    final shared = ProfileDirectoryController();
+    final appDir = await Directory.systemTemp.createTemp(
+      'main_shell_app_log_test_',
+    );
+    addTearDown(() async {
+      if (await appDir.exists()) {
+        await appDir.delete(recursive: true);
+      }
+    });
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<SettingsController>.value(
+            value: settingsController,
+          ),
+        ],
+        child: MaterialApp(
+          home: MainShellPage(
+            profileDirectoryController: shared,
+            applicationSupportDirectory: appDir,
+            modController: ModTranslationController(
+              settingsController: settingsController,
+              profileDirectoryController: shared,
+            ),
+            questController: QuestTranslationController(
+              settingsController: settingsController,
+              profileDirectoryController: shared,
+            ),
+            patchouliController: PatchouliTranslationController(
+              settingsController: settingsController,
+              profileDirectoryController: shared,
+            ),
+            customFileController: CustomFileTranslationController(
+              settingsController: settingsController,
+              profileDirectoryController: shared,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('openApplicationLogHistoryButton')),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byKey(const Key('openApplicationLogHistoryButton')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('historyDirectoryField')), findsOneWidget);
+    final field = tester.widget<TextField>(
+      find.byKey(const Key('historyDirectoryField')),
+    );
+    expect(field.controller!.text, appDir.path);
+  });
 }

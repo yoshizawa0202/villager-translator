@@ -89,6 +89,7 @@ Future<PatchouliTranslationResult> translatePatchouliBooks({
   CancellationToken? cancellationToken,
   SingleFileProgressCallback? onSingleFileProgress,
   OverallProgressCallback? onOverallProgress,
+  ItemChunkResultCallback? onChunkResult,
 }) async {
   final orderedEntries = sortPatchouliBookEntries(selectedEntries);
 
@@ -158,6 +159,7 @@ Future<PatchouliTranslationResult> translatePatchouliBooks({
       onChunkComplete: (completed, total) => onSingleFileProgress?.call(
         ChunkProgress(completedChunks: completed, totalChunks: total),
       ),
+      onChunkResult: (result) => onChunkResult?.call(entry.bookKey, result),
     );
 
     final newlyTranslated = <String, String>{};

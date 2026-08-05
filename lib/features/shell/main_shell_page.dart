@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -31,6 +33,7 @@ class MainShellPage extends StatefulWidget {
     this.questController,
     this.patchouliController,
     this.customFileController,
+    this.applicationSupportDirectory,
   });
 
   /// テスト用にコントローラーを直接注入するためのフック群。
@@ -40,6 +43,9 @@ class MainShellPage extends StatefulWidget {
   final QuestTranslationController? questController;
   final PatchouliTranslationController? patchouliController;
   final CustomFileTranslationController? customFileController;
+
+  /// アプリケーションログ・履歴の書き出し/参照先(プロファイル非依存、Issue#10)。
+  final Directory? applicationSupportDirectory;
 
   @override
   State<MainShellPage> createState() => _MainShellPageState();
@@ -67,24 +73,28 @@ class _MainShellPageState extends State<MainShellPage>
         ModTranslationController(
           settingsController: settingsController,
           profileDirectoryController: _profileDirectoryController,
+          applicationSupportDirectory: widget.applicationSupportDirectory,
         );
     _questController =
         widget.questController ??
         QuestTranslationController(
           settingsController: settingsController,
           profileDirectoryController: _profileDirectoryController,
+          applicationSupportDirectory: widget.applicationSupportDirectory,
         );
     _patchouliController =
         widget.patchouliController ??
         PatchouliTranslationController(
           settingsController: settingsController,
           profileDirectoryController: _profileDirectoryController,
+          applicationSupportDirectory: widget.applicationSupportDirectory,
         );
     _customFileController =
         widget.customFileController ??
         CustomFileTranslationController(
           settingsController: settingsController,
           profileDirectoryController: _profileDirectoryController,
+          applicationSupportDirectory: widget.applicationSupportDirectory,
         );
   }
 
@@ -200,6 +210,16 @@ class _MainShellPageState extends State<MainShellPage>
                         _profileDirectoryController.profileDirectory,
                   ),
                 ),
+                if (widget.applicationSupportDirectory != null)
+                  IconButton(
+                    key: const Key('openApplicationLogHistoryButton'),
+                    icon: const Icon(Icons.description_outlined),
+                    tooltip: 'アプリケーションログ',
+                    onPressed: () => HistoryDialog.show(
+                      context,
+                      initialDirectory: widget.applicationSupportDirectory,
+                    ),
+                  ),
                 Consumer<SettingsController>(
                   builder: (context, settingsController, _) {
                     final isDark =

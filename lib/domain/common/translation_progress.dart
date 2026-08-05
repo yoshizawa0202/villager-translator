@@ -1,3 +1,5 @@
+import '../translation/retry_policy.dart';
+
 /// 単一ファイル(単一対象)内のチャンク進捗(0〜100%、feature-spec.md §10)。
 class ChunkProgress {
   const ChunkProgress({
@@ -36,3 +38,9 @@ typedef SingleFileProgressCallback = void Function(ChunkProgress progress);
 
 /// 全体進捗の通知コールバック。
 typedef OverallProgressCallback = void Function(OverallProgress progress);
+
+/// [itemDisplayName](MOD 名やファイルの相対パスなど、処理対象の表示名)に
+/// 対するチャンク単位の処理結果([ChunkResult])を通知するコールバック。
+/// 粒度の細かいデバッグログ(1翻訳単位の実行内容・結果)に使う。
+typedef ItemChunkResultCallback =
+    void Function(String itemDisplayName, ChunkResult result);

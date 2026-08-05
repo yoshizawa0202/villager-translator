@@ -38,13 +38,13 @@ void main() {
     expect(notifyCount, 1);
   });
 
-  test('beginSession 後のログはセッションログファイルへ日時・レベル・処理種別・メッセージ付きで永続化される', () async {
+  test('beginSession 後、isMilestone なログのみがプロファイルのログファイルへ永続化される', () async {
     final logger = SessionLogger();
     const sessionId = '2026-08-04T12-00-00';
 
     await logger.beginSession(profileDirectory: tempDir, sessionId: sessionId);
     logger.log(LogLevel.info, 'translate', '翻訳開始', isMilestone: true);
-    logger.log(LogLevel.error, 'translate', '失敗しました');
+    logger.log(LogLevel.debug, 'translate.chunk', 'チャンク詳細');
     await logger.endSession();
 
     final logFile = File(
@@ -53,18 +53,45 @@ void main() {
     expect(await logFile.exists(), isTrue);
 
     final lines = await logFile.readAsLines();
-    expect(lines.length, 2);
+    expect(lines.length, 1);
 
-    final firstEntry = LogEntry.tryParseLogLine(lines[0]);
-    expect(firstEntry, isNotNull);
-    expect(firstEntry!.level, LogLevel.info);
-    expect(firstEntry.category, 'translate');
-    expect(firstEntry.message, '翻訳開始');
-    expect(firstEntry.isMilestone, isTrue);
+    final entry = LogEntry.tryParseLogLine(lines[0]);
+    expect(entry, isNotNull);
+    expect(entry!.level, LogLevel.info);
+    expect(entry.category, 'translate');
+    expect(entry.message, '翻訳開始');
+    expect(entry.isMilestone, isTrue);
+  });
 
-    final secondEntry = LogEntry.tryParseLogLine(lines[1]);
-    expect(secondEntry!.level, LogLevel.error);
-    expect(secondEntry.isMilestone, isFalse);
+  test('applicationSupportDirectory を指定すると isMilestone に関わらず全ログをアプリケーションログへ永続化する', () async {
+    final appDir = await Directory.systemTemp.createTemp(
+      'session_logger_app_test_',
+    );
+    addTearDown(() async {
+      if (await appDir.exists()) {
+        await appDir.delete(recursive: true);
+      }
+    });
+
+    final logger = SessionLogger(applicationSupportDirectory: appDir);
+    const sessionId = '2026-08-04T12-00-00';
+
+    await logger.beginSession(profileDirectory: tempDir, sessionId: sessionId);
+    logger.log(LogLevel.info, 'translate', '翻訳開始', isMilestone: true);
+    logger.log(LogLevel.debug, 'translate.chunk', 'チャンク詳細');
+    await logger.endSession();
+
+    final appLogFile = File(
+      p.joinAll([appDir.path, 'logs', 'localizer', sessionId, 'session.log']),
+    );
+    final appLines = await appLogFile.readAsLines();
+    expect(appLines.length, 2);
+
+    final profileLogFile = File(
+      p.joinAll([tempDir.path, 'logs', 'localizer', sessionId, 'session.log']),
+    );
+    final profileLines = await profileLogFile.readAsLines();
+    expect(profileLines.length, 1);
   });
 
   test('beginSession 前のログはメモリ上のみでファイルへ永続化されない', () async {

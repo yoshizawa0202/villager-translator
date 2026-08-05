@@ -136,5 +136,19 @@ void main() {
         [2, 2],
       ]);
     });
+
+    test('onChunkResult がファイルの相対パス付きで結果を通知する(Issue#10)', () async {
+      final entry = _jsonEntry('a.json', {'a': '1'});
+      final labels = <String>[];
+
+      await translateCustomFileEntries(
+        selectedEntries: [entry],
+        translateChunk: (chunk) async =>
+            chunk.map((k, v) => MapEntry(k, '[訳]$v')),
+        onChunkResult: (itemLabel, result) => labels.add(itemLabel),
+      );
+
+      expect(labels, ['a.json']);
+    });
   });
 }

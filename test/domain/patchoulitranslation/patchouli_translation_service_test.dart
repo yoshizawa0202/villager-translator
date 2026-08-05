@@ -233,5 +233,21 @@ void main() {
         [2, 2],
       ]);
     });
+
+    test('onChunkResult が本のキー(modId:bookId)付きで結果を通知する(Issue#10)', () async {
+      final entry = _entry('amod', 'guide', {'book.json#0': '1'});
+      final labels = <String>[];
+
+      await translatePatchouliBooks(
+        selectedEntries: [entry],
+        policy: ExistingTranslationPolicy.retranslateAll,
+        loadExistingTargetEntries: (_) async =>
+            const PatchouliExistingTranslation(isComplete: false, entries: {}),
+        translateChunk: _fakeTranslate,
+        onChunkResult: (itemLabel, result) => labels.add(itemLabel),
+      );
+
+      expect(labels, ['amod:guide']);
+    });
   });
 }

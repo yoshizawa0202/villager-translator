@@ -45,6 +45,7 @@ Future<CustomFileTranslationResult> translateCustomFileEntries({
   CancellationToken? cancellationToken,
   SingleFileProgressCallback? onSingleFileProgress,
   OverallProgressCallback? onOverallProgress,
+  ItemChunkResultCallback? onChunkResult,
 }) async {
   final orderedEntries = selectedEntries.toList()
     ..sort((a, b) => a.relativePath.compareTo(b.relativePath));
@@ -84,6 +85,8 @@ Future<CustomFileTranslationResult> translateCustomFileEntries({
       onChunkComplete: (completed, total) => onSingleFileProgress?.call(
         ChunkProgress(completedChunks: completed, totalChunks: total),
       ),
+      onChunkResult: (result) =>
+          onChunkResult?.call(entry.relativePath, result),
     );
 
     final newlyTranslated = <String, String>{};

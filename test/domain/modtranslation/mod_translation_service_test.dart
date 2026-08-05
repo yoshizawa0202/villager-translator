@@ -6,6 +6,7 @@ import 'package:villager_translator/domain/modtranslation/mod_scan_entry.dart';
 import 'package:villager_translator/domain/modtranslation/mod_translation_service.dart';
 import 'package:villager_translator/domain/settings/existing_translation_policy.dart';
 import 'package:villager_translator/domain/translation/lang_codec.dart';
+import 'package:villager_translator/domain/translation/retry_policy.dart';
 
 ModScanEntry _entry(
   String modId,
@@ -202,6 +203,44 @@ void main() {
 
       expect(fileProgressUpdates.map((p) => p.completedChunks), [1, 2]);
       expect(fileProgressUpdates.map((p) => p.totalChunks), [2, 2]);
+    });
+
+    test('onChunkResult が MOD 名付きでチャンク単位の結果を通知する(Issue#10)', () async {
+      final entry = _entry('amod', {'a': '1'});
+      final results = <String>[];
+
+      await translateSelectedMods(
+        selectedEntries: [entry],
+        policy: ExistingTranslationPolicy.retranslateAll,
+        loadExistingTargetEntries: (_) async => null,
+        chunkEntries: _singleChunk,
+        translateChunk: _fakeTranslate,
+        onChunkResult: (itemLabel, result) => results.add(itemLabel),
+      );
+
+      expect(results, ['amod']);
+    });
+
+    test('onChunkResult がチャンクの失敗を MOD 名付きで通知する(Issue#10)', () async {
+      final entry = _entry('failmod', {'a': '1'});
+      final received = <ChunkResult>[];
+
+      await translateSelectedMods(
+        selectedEntries: [entry],
+        policy: ExistingTranslationPolicy.retranslateAll,
+        loadExistingTargetEntries: (_) async => null,
+        chunkEntries: _singleChunk,
+        translateChunk: (chunk) async => throw Exception('翻訳失敗'),
+        maxRetries: 0,
+        waiter: (_) async {},
+        onChunkResult: (itemLabel, result) {
+          expect(itemLabel, 'failmod');
+          received.add(result);
+        },
+      );
+
+      expect(received, hasLength(1));
+      expect(received.single.success, isFalse);
     });
   });
 }

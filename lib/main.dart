@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
@@ -32,13 +34,27 @@ Future<void> main() async {
   );
   await settingsController.load();
 
-  runApp(VillagerTranslatorApp(settingsController: settingsController));
+  runApp(
+    VillagerTranslatorApp(
+      settingsController: settingsController,
+      applicationSupportDirectory: supportDirectory,
+    ),
+  );
 }
 
 class VillagerTranslatorApp extends StatelessWidget {
-  const VillagerTranslatorApp({super.key, required this.settingsController});
+  const VillagerTranslatorApp({
+    super.key,
+    required this.settingsController,
+    this.applicationSupportDirectory,
+  });
 
   final SettingsController settingsController;
+
+  /// アプリケーションログの書き出し先(プロファイル非依存、Issue#10)。
+  /// `main()` で解決したディレクトリをそのまま渡す(テストでは `null` のまま
+  /// 使い、アプリケーションログの書き出しをスキップする)。
+  final Directory? applicationSupportDirectory;
 
   @override
   Widget build(BuildContext context) {
@@ -62,7 +78,9 @@ class VillagerTranslatorApp extends StatelessWidget {
               useMaterial3: true,
             ),
             themeMode: _toFlutterThemeMode(settings.settings.themeMode),
-            home: const MainShellPage(),
+            home: MainShellPage(
+              applicationSupportDirectory: applicationSupportDirectory,
+            ),
           );
         },
       ),
