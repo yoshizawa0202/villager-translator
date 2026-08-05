@@ -88,14 +88,14 @@ class _PromptEditorSectionState extends State<PromptEditorSection> {
   }
 
   void _saveSystemPrompt(BuildContext context, String value) {
-    context.read<SettingsController>().updateLlm(
-      (s) => s.copyWith(systemPrompt: value),
-    );
+    final controller = context.read<SettingsController>();
+    if (value == controller.settings.llm.systemPrompt) return;
+    controller.updateLlm((s) => s.copyWith(systemPrompt: value));
   }
 
   void _saveUserPrompt(BuildContext context, String value) {
-    context.read<SettingsController>().updateLlm(
-      (s) => s.copyWith(userPrompt: value),
-    );
+    final controller = context.read<SettingsController>();
+    if (value == controller.settings.llm.userPrompt) return;
+    controller.updateLlm((s) => s.copyWith(userPrompt: value));
   }
 }

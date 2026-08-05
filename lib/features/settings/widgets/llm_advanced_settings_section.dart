@@ -110,16 +110,16 @@ class _LlmAdvancedSettingsSectionState
   void _saveMaxRetries(BuildContext context, String value) {
     final parsed = int.tryParse(value);
     if (parsed == null) return;
-    context.read<SettingsController>().updateLlm(
-      (s) => s.copyWith(maxRetries: parsed),
-    );
+    final controller = context.read<SettingsController>();
+    if (parsed == controller.settings.llm.maxRetries) return;
+    controller.updateLlm((s) => s.copyWith(maxRetries: parsed));
   }
 
   void _saveTemperature(BuildContext context, String value) {
     final parsed = double.tryParse(value);
     if (parsed == null) return;
-    context.read<SettingsController>().updateLlm(
-      (s) => s.copyWith(temperature: parsed),
-    );
+    final controller = context.read<SettingsController>();
+    if (parsed == controller.settings.llm.temperature) return;
+    controller.updateLlm((s) => s.copyWith(temperature: parsed));
   }
 }

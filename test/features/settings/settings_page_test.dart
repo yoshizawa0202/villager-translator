@@ -134,6 +134,31 @@ void main() {
     expect(afterSave.translation.resourcePackName, 'Changed');
   });
 
+  testWidgets('テキスト欄にフォーカスしただけで値を変更せずに外しても未保存扱いにならない', (
+    tester,
+  ) async {
+    final controller = await pumpSettingsPage(tester);
+
+    final scrollable = find.ancestor(
+      of: find.byKey(const Key('apiKeyField')),
+      matching: find.byType(Scrollable),
+    );
+    await tester.dragUntilVisible(
+      find.byKey(const Key('resourcePackNameField')),
+      scrollable,
+      const Offset(0, -200),
+    );
+
+    await tester.tap(find.byKey(const Key('resourcePackNameField')));
+    await tester.pump();
+    // 値を変更せずにフォーカスだけ外す。
+    FocusManager.instance.primaryFocus?.unfocus();
+    await tester.pumpAndSettle();
+
+    expect(controller.hasUnsavedChanges, isFalse);
+    expect(find.text('変更後に「保存」ボタンを押すと反映されます'), findsOneWidget);
+  });
+
   testWidgets('テキスト欄を編集した直後に Enter を押さず保存ボタンを押しても、入力値が破棄されずに保存される', (
     tester,
   ) async {

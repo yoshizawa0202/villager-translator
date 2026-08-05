@@ -54,16 +54,7 @@ class SettingsPage extends StatelessWidget {
             ),
             TextButton(
               key: const Key('saveSettingsButton'),
-              onPressed: () {
-                // フォーカスが残ったフィールドの入力中の値をドラフトへ確定してから
-                // 保存する(フォーカスを失うと各フィールドの FocusNode リスナーが
-                // ドラフトへ反映する)。フォーカス変更の通知は既定ではマイクロ
-                // タスクまで遅延されるため、save() より前に確実に確定させるには
-                // 明示的に即時反映させる必要がある。
-                FocusScope.of(context).unfocus();
-                FocusManager.instance.applyFocusChangesIfNeeded();
-                context.read<SettingsController>().save();
-              },
+              onPressed: () => _handleSave(context),
               child: const Text('保存', style: TextStyle(color: Colors.white)),
             ),
           ],
@@ -98,6 +89,18 @@ class SettingsPage extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  /// フォーカスが残ったフィールドの入力中の値をドラフトへ確定してから保存する
+  /// (フォーカスを失うと各フィールドの FocusNode リスナーがドラフトへ反映する)。
+  /// フォーカス変更の通知は既定ではマイクロタスクまで遅延されるため、save() の
+  /// 前に1マイクロタスク待って確実に確定させる。`FocusManager` の内部 API
+  /// (`applyFocusChangesIfNeeded`)には依存しない。
+  Future<void> _handleSave(BuildContext context) async {
+    FocusScope.of(context).unfocus();
+    await Future<void>.value();
+    if (!context.mounted) return;
+    await context.read<SettingsController>().save();
   }
 
   Future<void> _confirmReset(BuildContext context) async {

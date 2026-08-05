@@ -105,7 +105,12 @@ class _ModelSelectorState extends State<ModelSelector> {
   }
 
   void _saveCustomModel(String value) {
-    context.read<SettingsController>().updateLlm(
+    final controller = context.read<SettingsController>();
+    final llm = controller.settings.llm;
+    if (llm.model == kCustomModelSentinel && llm.customModel == value) {
+      return;
+    }
+    controller.updateLlm(
       (s) => s.copyWith(model: kCustomModelSentinel, customModel: value),
     );
   }

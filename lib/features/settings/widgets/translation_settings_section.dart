@@ -54,6 +54,7 @@ class _TranslationSettingsSectionState
           _saveInt(
             context,
             _maxTokensController.text,
+            (s) => s.maxTokensPerChunk,
             (s, v) => s.copyWith(maxTokensPerChunk: v),
           );
         }
@@ -61,9 +62,13 @@ class _TranslationSettingsSectionState
     _resourcePackNameFocusNode = FocusNode()
       ..addListener(() {
         if (!_resourcePackNameFocusNode.hasFocus) {
-          context.read<SettingsController>().updateTranslation(
-            (s) =>
-                s.copyWith(resourcePackName: _resourcePackNameController.text),
+          final controller = context.read<SettingsController>();
+          final value = _resourcePackNameController.text;
+          if (value == controller.settings.translation.resourcePackName) {
+            return;
+          }
+          controller.updateTranslation(
+            (s) => s.copyWith(resourcePackName: value),
           );
         }
       });
@@ -73,6 +78,7 @@ class _TranslationSettingsSectionState
           _saveInt(
             context,
             _modChunkSizeController.text,
+            (s) => s.modChunkSize,
             (s, v) => s.copyWith(modChunkSize: v),
           );
         }
@@ -83,6 +89,7 @@ class _TranslationSettingsSectionState
           _saveInt(
             context,
             _questChunkSizeController.text,
+            (s) => s.questChunkSize,
             (s, v) => s.copyWith(questChunkSize: v),
           );
         }
@@ -93,6 +100,7 @@ class _TranslationSettingsSectionState
           _saveInt(
             context,
             _guidebookChunkSizeController.text,
+            (s) => s.guidebookChunkSize,
             (s, v) => s.copyWith(guidebookChunkSize: v),
           );
         }
@@ -168,6 +176,7 @@ class _TranslationSettingsSectionState
           onFieldSubmitted: (value) => _saveInt(
             context,
             value,
+            (s) => s.maxTokensPerChunk,
             (s, v) => s.copyWith(maxTokensPerChunk: v),
           ),
         ),
@@ -212,9 +221,15 @@ class _TranslationSettingsSectionState
           controller: _resourcePackNameController,
           focusNode: _resourcePackNameFocusNode,
           decoration: const InputDecoration(labelText: 'リソースパック名'),
-          onFieldSubmitted: (value) => context
-              .read<SettingsController>()
-              .updateTranslation((s) => s.copyWith(resourcePackName: value)),
+          onFieldSubmitted: (value) {
+            final controller = context.read<SettingsController>();
+            if (value == controller.settings.translation.resourcePackName) {
+              return;
+            }
+            controller.updateTranslation(
+              (s) => s.copyWith(resourcePackName: value),
+            );
+          },
         ),
         Row(
           children: [
@@ -234,6 +249,7 @@ class _TranslationSettingsSectionState
                 onFieldSubmitted: (value) => _saveInt(
                   context,
                   value,
+                  (s) => s.modChunkSize,
                   (s, v) => s.copyWith(modChunkSize: v),
                 ),
               ),
@@ -255,6 +271,7 @@ class _TranslationSettingsSectionState
                 onFieldSubmitted: (value) => _saveInt(
                   context,
                   value,
+                  (s) => s.questChunkSize,
                   (s, v) => s.copyWith(questChunkSize: v),
                 ),
               ),
@@ -276,6 +293,7 @@ class _TranslationSettingsSectionState
                 onFieldSubmitted: (value) => _saveInt(
                   context,
                   value,
+                  (s) => s.guidebookChunkSize,
                   (s, v) => s.copyWith(guidebookChunkSize: v),
                 ),
               ),
@@ -289,12 +307,13 @@ class _TranslationSettingsSectionState
   void _saveInt(
     BuildContext context,
     String value,
+    int Function(TranslationSettings s) currentValue,
     TranslationSettings Function(TranslationSettings s, int v) apply,
   ) {
     final parsed = int.tryParse(value);
     if (parsed == null) return;
-    context.read<SettingsController>().updateTranslation(
-      (s) => apply(s, parsed),
-    );
+    final controller = context.read<SettingsController>();
+    if (parsed == currentValue(controller.settings.translation)) return;
+    controller.updateTranslation((s) => apply(s, parsed));
   }
 }

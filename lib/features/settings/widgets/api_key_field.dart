@@ -32,12 +32,11 @@ class _ApiKeyFieldState extends State<ApiKeyField> {
     _focusNode = FocusNode()
       ..addListener(() {
         if (!_focusNode.hasFocus) {
-          final currentProvider = context
-              .read<SettingsController>()
-              .settings
-              .llm
-              .provider;
-          _save(context, currentProvider, _textController.text);
+          final controller = context.read<SettingsController>();
+          final currentProvider = controller.settings.llm.provider;
+          final value = _textController.text;
+          if (value == controller.apiKeyFor(currentProvider)) return;
+          _save(context, currentProvider, value);
         }
       });
   }
