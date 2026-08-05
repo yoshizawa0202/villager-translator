@@ -315,7 +315,9 @@ void main() {
   ) async {
     final settingsController = await _buildSettingsController();
     final shared = ProfileDirectoryController();
-    final appDir = await Directory.systemTemp.createTemp(
+    // 非同期版 createTemp は、このプロジェクトの実行環境では testWidgets 内で
+    // Future が完了しない不安定さが確認されたため、同期版を使う。
+    final appDir = Directory.systemTemp.createTempSync(
       'main_shell_app_log_test_',
     );
     addTearDown(() async {
@@ -362,8 +364,12 @@ void main() {
       findsOneWidget,
     );
 
+    // 実 I/O を伴うダイアログの読み込み完了を pumpAndSettle で待つと、この
+    // プロジェクトの実行環境ではテストランナーが不安定になるため、ダイアログの
+    // 表示に必要な分だけフレームを進める(history_dialog_test.dart 参照)。
     await tester.tap(find.byKey(const Key('openApplicationLogHistoryButton')));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
 
     expect(find.byKey(const Key('historyDirectoryField')), findsOneWidget);
     final field = tester.widget<TextField>(

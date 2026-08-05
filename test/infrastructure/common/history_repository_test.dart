@@ -84,7 +84,7 @@ void main() {
     final logger = SessionLogger();
     await logger.beginSession(profileDirectory: tempDir, sessionId: sessionId);
     logger.log(LogLevel.info, 'translate', '開始', isMilestone: true);
-    logger.log(LogLevel.error, 'translate', '失敗');
+    logger.log(LogLevel.error, 'translate', '失敗', isMilestone: true);
     await logger.endSession();
 
     final sessionDirectory = SessionPaths(
