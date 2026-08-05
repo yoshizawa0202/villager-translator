@@ -1,5 +1,3 @@
-import '../translation/retry_policy.dart';
-
 /// 単一ファイル(単一対象)内のチャンク進捗(0〜100%、feature-spec.md §10)。
 class ChunkProgress {
   const ChunkProgress({
@@ -44,3 +42,29 @@ typedef OverallProgressCallback = void Function(OverallProgress progress);
 /// 粒度の細かいデバッグログ(1翻訳単位の実行内容・結果)に使う。
 typedef ItemChunkResultCallback =
     void Function(String itemDisplayName, ChunkResult result);
+
+/// チャンク1件分の最終処理結果(Issue#10: 粒度の細かいデバッグログ用)。
+///
+/// [chunkIndex] は0始まり。[retryCount] はリトライが発生した回数(0なら
+/// 初回の試行で成功)。[success] が `false` の場合、[error] にリトライを
+/// 使い切った際の最後の例外が入る。
+class ChunkResult {
+  const ChunkResult({
+    required this.chunkIndex,
+    required this.totalChunks,
+    required this.keyCount,
+    required this.success,
+    required this.retryCount,
+    this.error,
+  });
+
+  final int chunkIndex;
+  final int totalChunks;
+  final int keyCount;
+  final bool success;
+  final int retryCount;
+  final Object? error;
+}
+
+/// [ChunkResult] の通知コールバック。
+typedef ChunkResultCallback = void Function(ChunkResult result);

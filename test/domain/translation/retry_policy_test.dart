@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:villager_translator/domain/common/cancellation_token.dart';
+import 'package:villager_translator/domain/common/translation_progress.dart';
 import 'package:villager_translator/domain/llm/llm_api_exception.dart';
 import 'package:villager_translator/domain/translation/retry_policy.dart';
 

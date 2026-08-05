@@ -151,19 +151,40 @@ class SessionLogger extends ChangeNotifier {
   }
 
   /// 現在のセッションのログファイルを閉じる(セッションが開いていなければ何もしない)。
+  ///
+  /// 2系統のシンクは互いに独立してクローズする。一方の flush/close が例外を
+  /// 投げても、もう一方のファイルハンドルがリークしないようにするため。
   Future<void> endSession() async {
     final profileSink = _profileSink;
     _profileSink = null;
-    if (profileSink != null) {
-      await profileSink.flush();
-      await profileSink.close();
-    }
-
     final applicationSink = _applicationSink;
     _applicationSink = null;
+
+    Object? firstError;
+    StackTrace? firstStackTrace;
+
+    if (profileSink != null) {
+      try {
+        await profileSink.flush();
+        await profileSink.close();
+      } catch (error, stackTrace) {
+        firstError = error;
+        firstStackTrace = stackTrace;
+      }
+    }
+
     if (applicationSink != null) {
-      await applicationSink.flush();
-      await applicationSink.close();
+      try {
+        await applicationSink.flush();
+        await applicationSink.close();
+      } catch (error, stackTrace) {
+        firstError ??= error;
+        firstStackTrace ??= stackTrace;
+      }
+    }
+
+    if (firstError != null) {
+      Error.throwWithStackTrace(firstError, firstStackTrace!);
     }
   }
 
