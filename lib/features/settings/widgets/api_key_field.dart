@@ -15,6 +15,7 @@ class ApiKeyField extends StatefulWidget {
 
 class _ApiKeyFieldState extends State<ApiKeyField> {
   late final TextEditingController _textController;
+  late final FocusNode _focusNode;
   bool _obscure = true;
   String? _testResultMessage;
   LlmProvider? _lastProvider;
@@ -28,11 +29,23 @@ class _ApiKeyFieldState extends State<ApiKeyField> {
     _textController = TextEditingController(
       text: controller.apiKeyFor(provider),
     );
+    _focusNode = FocusNode()
+      ..addListener(() {
+        if (!_focusNode.hasFocus) {
+          final currentProvider = context
+              .read<SettingsController>()
+              .settings
+              .llm
+              .provider;
+          _save(context, currentProvider, _textController.text);
+        }
+      });
   }
 
   @override
   void dispose() {
     _textController.dispose();
+    _focusNode.dispose();
     super.dispose();
   }
 
@@ -56,6 +69,7 @@ class _ApiKeyFieldState extends State<ApiKeyField> {
               child: TextFormField(
                 key: const Key('apiKeyField'),
                 controller: _textController,
+                focusNode: _focusNode,
                 obscureText: _obscure,
                 decoration: InputDecoration(
                   labelText: '${provider.displayName} API キー',
@@ -68,8 +82,6 @@ class _ApiKeyFieldState extends State<ApiKeyField> {
                   ),
                 ),
                 onFieldSubmitted: (value) => _save(context, provider, value),
-                onEditingComplete: () =>
-                    _save(context, provider, _textController.text),
               ),
             ),
             const SizedBox(width: 8),

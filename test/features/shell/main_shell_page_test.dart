@@ -169,9 +169,7 @@ void main() {
     expect(questController.targetLanguageId, 'de_de');
   });
 
-  testWidgets('翻訳(スキャン)実行中に設定画面を開くと、実行中である旨の注意書きが表示される(#9)', (
-    tester,
-  ) async {
+  testWidgets('翻訳(スキャン)実行中に設定画面を開くと、実行中である旨の注意書きが表示される(#9)', (tester) async {
     final settingsController = await _buildSettingsController();
     final shared = ProfileDirectoryController();
     final modController = ModTranslationController(

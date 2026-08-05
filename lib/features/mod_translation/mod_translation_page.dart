@@ -304,7 +304,7 @@ class _ModTable extends StatelessWidget {
               entry.modInfo.id,
             );
             return DataRow(
-              key: ValueKey('modRow_${entry.modInfo.id}'),
+              key: ValueKey('modRow_${entry.jarRelativePath}'),
               selected: selected,
               onSelectChanged: (value) => controller.toggleModSelection(
                 entry.modInfo.id,
@@ -313,7 +313,7 @@ class _ModTable extends StatelessWidget {
               cells: [
                 DataCell(
                   KeyedSubtree(
-                    key: ValueKey('modRow_${entry.modInfo.id}'),
+                    key: ValueKey('modRow_${entry.jarRelativePath}'),
                     child: Text(entry.modInfo.name),
                   ),
                 ),

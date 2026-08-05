@@ -23,6 +23,11 @@ class _TranslationSettingsSectionState
   late final TextEditingController _modChunkSizeController;
   late final TextEditingController _questChunkSizeController;
   late final TextEditingController _guidebookChunkSizeController;
+  late final FocusNode _maxTokensFocusNode;
+  late final FocusNode _resourcePackNameFocusNode;
+  late final FocusNode _modChunkSizeFocusNode;
+  late final FocusNode _questChunkSizeFocusNode;
+  late final FocusNode _guidebookChunkSizeFocusNode;
 
   @override
   void initState() {
@@ -43,6 +48,55 @@ class _TranslationSettingsSectionState
     _guidebookChunkSizeController = TextEditingController(
       text: t.guidebookChunkSize.toString(),
     );
+    _maxTokensFocusNode = FocusNode()
+      ..addListener(() {
+        if (!_maxTokensFocusNode.hasFocus) {
+          _saveInt(
+            context,
+            _maxTokensController.text,
+            (s, v) => s.copyWith(maxTokensPerChunk: v),
+          );
+        }
+      });
+    _resourcePackNameFocusNode = FocusNode()
+      ..addListener(() {
+        if (!_resourcePackNameFocusNode.hasFocus) {
+          context.read<SettingsController>().updateTranslation(
+            (s) =>
+                s.copyWith(resourcePackName: _resourcePackNameController.text),
+          );
+        }
+      });
+    _modChunkSizeFocusNode = FocusNode()
+      ..addListener(() {
+        if (!_modChunkSizeFocusNode.hasFocus) {
+          _saveInt(
+            context,
+            _modChunkSizeController.text,
+            (s, v) => s.copyWith(modChunkSize: v),
+          );
+        }
+      });
+    _questChunkSizeFocusNode = FocusNode()
+      ..addListener(() {
+        if (!_questChunkSizeFocusNode.hasFocus) {
+          _saveInt(
+            context,
+            _questChunkSizeController.text,
+            (s, v) => s.copyWith(questChunkSize: v),
+          );
+        }
+      });
+    _guidebookChunkSizeFocusNode = FocusNode()
+      ..addListener(() {
+        if (!_guidebookChunkSizeFocusNode.hasFocus) {
+          _saveInt(
+            context,
+            _guidebookChunkSizeController.text,
+            (s, v) => s.copyWith(guidebookChunkSize: v),
+          );
+        }
+      });
   }
 
   @override
@@ -52,6 +106,11 @@ class _TranslationSettingsSectionState
     _modChunkSizeController.dispose();
     _questChunkSizeController.dispose();
     _guidebookChunkSizeController.dispose();
+    _maxTokensFocusNode.dispose();
+    _resourcePackNameFocusNode.dispose();
+    _modChunkSizeFocusNode.dispose();
+    _questChunkSizeFocusNode.dispose();
+    _guidebookChunkSizeFocusNode.dispose();
     super.dispose();
   }
 
@@ -96,6 +155,7 @@ class _TranslationSettingsSectionState
         TextFormField(
           key: const Key('maxTokensPerChunkField'),
           controller: _maxTokensController,
+          focusNode: _maxTokensFocusNode,
           decoration: const InputDecoration(labelText: 'チャンクあたり最大トークン数'),
           keyboardType: TextInputType.number,
           enabled: t.useTokenBasedChunking,
@@ -108,11 +168,6 @@ class _TranslationSettingsSectionState
           onFieldSubmitted: (value) => _saveInt(
             context,
             value,
-            (s, v) => s.copyWith(maxTokensPerChunk: v),
-          ),
-          onEditingComplete: () => _saveInt(
-            context,
-            _maxTokensController.text,
             (s, v) => s.copyWith(maxTokensPerChunk: v),
           ),
         ),
@@ -155,16 +210,11 @@ class _TranslationSettingsSectionState
         TextFormField(
           key: const Key('resourcePackNameField'),
           controller: _resourcePackNameController,
+          focusNode: _resourcePackNameFocusNode,
           decoration: const InputDecoration(labelText: 'リソースパック名'),
           onFieldSubmitted: (value) => context
               .read<SettingsController>()
               .updateTranslation((s) => s.copyWith(resourcePackName: value)),
-          onEditingComplete: () =>
-              context.read<SettingsController>().updateTranslation(
-                (s) => s.copyWith(
-                  resourcePackName: _resourcePackNameController.text,
-                ),
-              ),
         ),
         Row(
           children: [
@@ -172,6 +222,7 @@ class _TranslationSettingsSectionState
               child: TextFormField(
                 key: const Key('modChunkSizeField'),
                 controller: _modChunkSizeController,
+                focusNode: _modChunkSizeFocusNode,
                 decoration: const InputDecoration(labelText: 'MOD チャンクサイズ'),
                 keyboardType: TextInputType.number,
                 autovalidateMode: AutovalidateMode.onUserInteraction,
@@ -185,11 +236,6 @@ class _TranslationSettingsSectionState
                   value,
                   (s, v) => s.copyWith(modChunkSize: v),
                 ),
-                onEditingComplete: () => _saveInt(
-                  context,
-                  _modChunkSizeController.text,
-                  (s, v) => s.copyWith(modChunkSize: v),
-                ),
               ),
             ),
             const SizedBox(width: 8),
@@ -197,6 +243,7 @@ class _TranslationSettingsSectionState
               child: TextFormField(
                 key: const Key('questChunkSizeField'),
                 controller: _questChunkSizeController,
+                focusNode: _questChunkSizeFocusNode,
                 decoration: const InputDecoration(labelText: 'クエスト チャンクサイズ'),
                 keyboardType: TextInputType.number,
                 autovalidateMode: AutovalidateMode.onUserInteraction,
@@ -210,11 +257,6 @@ class _TranslationSettingsSectionState
                   value,
                   (s, v) => s.copyWith(questChunkSize: v),
                 ),
-                onEditingComplete: () => _saveInt(
-                  context,
-                  _questChunkSizeController.text,
-                  (s, v) => s.copyWith(questChunkSize: v),
-                ),
               ),
             ),
             const SizedBox(width: 8),
@@ -222,6 +264,7 @@ class _TranslationSettingsSectionState
               child: TextFormField(
                 key: const Key('guidebookChunkSizeField'),
                 controller: _guidebookChunkSizeController,
+                focusNode: _guidebookChunkSizeFocusNode,
                 decoration: const InputDecoration(labelText: 'ガイドブック チャンクサイズ'),
                 keyboardType: TextInputType.number,
                 autovalidateMode: AutovalidateMode.onUserInteraction,
@@ -233,11 +276,6 @@ class _TranslationSettingsSectionState
                 onFieldSubmitted: (value) => _saveInt(
                   context,
                   value,
-                  (s, v) => s.copyWith(guidebookChunkSize: v),
-                ),
-                onEditingComplete: () => _saveInt(
-                  context,
-                  _guidebookChunkSizeController.text,
                   (s, v) => s.copyWith(guidebookChunkSize: v),
                 ),
               ),

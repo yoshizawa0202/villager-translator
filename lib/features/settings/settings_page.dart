@@ -12,9 +12,12 @@ import 'widgets/translation_settings_section.dart';
 
 /// 設定画面(feature-spec.md §4)。
 ///
-/// 各項目の変更は即座に検証・保存される(自動保存方式)。「デフォルトに戻す」のみ
-/// 明示的な操作として残す(受け入れ条件5)。保存が完了したタイミングは
-/// [_SaveStatusIndicator] で視覚的に示す(#9)。
+/// 各項目の変更は検証のうえ画面内のドラフトにのみ反映され、右上の「保存」
+/// ボタンを押したときにまとめて設定ファイル・セキュアストレージへ永続化される
+/// (受け入れ条件13)。「デフォルトに戻す」は保存ボタンを介さず即時に反映される
+/// (受け入れ条件5・17)。保存状態は [_SaveStatusIndicator] で視覚的に示し(#9)、
+/// 未保存の変更がある状態で画面を閉じようとすると警告ダイアログを表示する
+/// (受け入れ条件15)。
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key, this.isTranslationRunning = false});
 
@@ -26,47 +29,73 @@ class SettingsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('設定'),
-        actions: [
-          TextButton(
-            key: const Key('resetToDefaultsButton'),
-            onPressed: () => _confirmReset(context),
-            child: const Text(
-              'デフォルトに戻す',
-              style: TextStyle(color: Colors.white),
+    final hasUnsavedChanges = context
+        .watch<SettingsController>()
+        .hasUnsavedChanges;
+
+    return PopScope(
+      canPop: !hasUnsavedChanges,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        await _confirmDiscardAndClose(context);
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('設定'),
+          actionsPadding: const EdgeInsets.only(right: 16),
+          actions: [
+            TextButton(
+              key: const Key('resetToDefaultsButton'),
+              onPressed: () => _confirmReset(context),
+              child: const Text(
+                'デフォルトに戻す',
+                style: TextStyle(color: Colors.white),
+              ),
             ),
-          ),
-        ],
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          if (isTranslationRunning) ...[
-            const _TranslationRunningNotice(),
-            const SizedBox(height: 12),
+            TextButton(
+              key: const Key('saveSettingsButton'),
+              onPressed: () {
+                // フォーカスが残ったフィールドの入力中の値をドラフトへ確定してから
+                // 保存する(フォーカスを失うと各フィールドの FocusNode リスナーが
+                // ドラフトへ反映する)。フォーカス変更の通知は既定ではマイクロ
+                // タスクまで遅延されるため、save() より前に確実に確定させるには
+                // 明示的に即時反映させる必要がある。
+                FocusScope.of(context).unfocus();
+                FocusManager.instance.applyFocusChangesIfNeeded();
+                context.read<SettingsController>().save();
+              },
+              child: const Text('保存', style: TextStyle(color: Colors.white)),
+            ),
           ],
-          const _SaveStatusIndicator(),
-          const SizedBox(height: 16),
-          const _SectionHeader('LLM 設定'),
-          const ProviderSelector(),
-          const SizedBox(height: 12),
-          const ApiKeyField(),
-          const SizedBox(height: 12),
-          const ModelSelector(),
-          const SizedBox(height: 12),
-          const LlmAdvancedSettingsSection(),
-          const SizedBox(height: 24),
-          const _SectionHeader('プロンプト'),
-          const PromptEditorSection(),
-          const SizedBox(height: 24),
-          const _SectionHeader('翻訳設定'),
-          const TranslationSettingsSection(),
-          const SizedBox(height: 24),
-          const _SectionHeader('対象言語'),
-          const LanguageManagementButton(),
-        ],
+        ),
+        body: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            if (isTranslationRunning) ...[
+              const _TranslationRunningNotice(),
+              const SizedBox(height: 12),
+            ],
+            const _SaveStatusIndicator(),
+            const SizedBox(height: 16),
+            const _SectionHeader('LLM 設定'),
+            const ProviderSelector(),
+            const SizedBox(height: 12),
+            const ApiKeyField(),
+            const SizedBox(height: 12),
+            const ModelSelector(),
+            const SizedBox(height: 12),
+            const LlmAdvancedSettingsSection(),
+            const SizedBox(height: 24),
+            const _SectionHeader('プロンプト'),
+            const PromptEditorSection(),
+            const SizedBox(height: 24),
+            const _SectionHeader('翻訳設定'),
+            const TranslationSettingsSection(),
+            const SizedBox(height: 24),
+            const _SectionHeader('対象言語'),
+            const LanguageManagementButton(),
+          ],
+        ),
       ),
     );
   }
@@ -91,6 +120,32 @@ class SettingsPage extends StatelessWidget {
     );
     if (confirmed == true && context.mounted) {
       await context.read<SettingsController>().resetToDefaults();
+    }
+  }
+
+  Future<void> _confirmDiscardAndClose(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('保存されていない変更があります'),
+        content: const Text('設定画面を閉じると、保存していない変更は破棄されます。破棄しますか?'),
+        actions: [
+          TextButton(
+            key: const Key('discardChangesCancelButton'),
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('キャンセル'),
+          ),
+          TextButton(
+            key: const Key('discardChangesConfirmButton'),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('破棄して閉じる'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && context.mounted) {
+      context.read<SettingsController>().discardChanges();
+      Navigator.of(context).pop();
     }
   }
 }
@@ -143,24 +198,41 @@ class _TranslationRunningNotice extends StatelessWidget {
   }
 }
 
-/// 設定の保存状態を示すインジケーター(#9)。
+/// 設定の保存状態を示すインジケーター(#9、#11)。
 ///
-/// 自動保存方式のため、いつ保存が完了したのかが視覚的に分かりづらいという
-/// 課題を解消するために、直近の保存完了時刻を表示する。
+/// 保存ボタン方式のため、未保存の変更があるかどうかと、直近の保存完了時刻を
+/// 表示することで、保存タイミングを視覚的に分かりやすくする。
 class _SaveStatusIndicator extends StatelessWidget {
   const _SaveStatusIndicator();
 
   @override
   Widget build(BuildContext context) {
-    final lastSavedAt = context.watch<SettingsController>().lastSavedAt;
-    final textStyle = Theme.of(context).textTheme.bodySmall?.copyWith(
-      color: Theme.of(context).colorScheme.onSurfaceVariant,
-    );
+    final controller = context.watch<SettingsController>();
+    final hasUnsavedChanges = controller.hasUnsavedChanges;
+    final lastSavedAt = controller.lastSavedAt;
+    final colorScheme = Theme.of(context).colorScheme;
+    final textStyle = Theme.of(
+      context,
+    ).textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant);
+
+    if (hasUnsavedChanges) {
+      return Row(
+        key: const Key('settingsSaveStatus'),
+        children: [
+          Icon(Icons.circle, size: 10, color: colorScheme.error),
+          const SizedBox(width: 6),
+          Text(
+            '未保存の変更があります。「保存」ボタンを押すと反映されます',
+            style: textStyle?.copyWith(color: colorScheme.error),
+          ),
+        ],
+      );
+    }
 
     if (lastSavedAt == null) {
       return Text(
         key: const Key('settingsSaveStatus'),
-        '変更内容は入力するたびに自動的に保存されます',
+        '変更後に「保存」ボタンを押すと反映されます',
         style: textStyle,
       );
     }
@@ -168,11 +240,7 @@ class _SaveStatusIndicator extends StatelessWidget {
     return Row(
       key: const Key('settingsSaveStatus'),
       children: [
-        Icon(
-          Icons.check_circle,
-          size: 14,
-          color: Theme.of(context).colorScheme.primary,
-        ),
+        Icon(Icons.check_circle, size: 14, color: colorScheme.primary),
         const SizedBox(width: 4),
         Text('保存しました(${_formatTime(lastSavedAt)})', style: textStyle),
       ],

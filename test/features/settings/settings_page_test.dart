@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
+import 'package:villager_translator/domain/llm/llm_provider.dart';
 import 'package:villager_translator/features/settings/settings_controller.dart';
 import 'package:villager_translator/features/settings/settings_page.dart';
 
@@ -97,18 +98,185 @@ void main() {
     expect(find.textContaining('{{content}}'), findsNothing);
   });
 
-  testWidgets('設定変更を保存すると、保存状態インジケーターの表示が更新される(#9)', (tester) async {
-    final controller = await pumpSettingsPage(tester);
+  testWidgets('項目を変更しただけでは永続化されず、保存ボタンを押すと反映される(#9、#11)', (tester) async {
+    final repository = InMemorySettingsRepository();
+    final controller = SettingsController(
+      repository: repository,
+      apiKeyStore: InMemoryApiKeyStore(),
+    );
+    await controller.load();
 
-    expect(find.text('変更内容は入力するたびに自動的に保存されます'), findsOneWidget);
+    await tester.pumpWidget(
+      ChangeNotifierProvider<SettingsController>.value(
+        value: controller,
+        child: const MaterialApp(home: SettingsPage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('変更後に「保存」ボタンを押すと反映されます'), findsOneWidget);
 
     await controller.updateTranslation(
       (s) => s.copyWith(resourcePackName: 'Changed'),
     );
     await tester.pump();
 
-    expect(find.text('変更内容は入力するたびに自動的に保存されます'), findsNothing);
+    expect(find.textContaining('未保存の変更があります'), findsOneWidget);
+    final beforeSave = await repository.load();
+    expect(beforeSave.translation.resourcePackName, 'VillagerTranslator');
+
+    await tester.tap(find.byKey(const Key('saveSettingsButton')));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('未保存の変更があります'), findsNothing);
     expect(find.textContaining('保存しました'), findsOneWidget);
+    final afterSave = await repository.load();
+    expect(afterSave.translation.resourcePackName, 'Changed');
+  });
+
+  testWidgets('テキスト欄を編集した直後に Enter を押さず保存ボタンを押しても、入力値が破棄されずに保存される', (
+    tester,
+  ) async {
+    final repository = InMemorySettingsRepository();
+    final controller = SettingsController(
+      repository: repository,
+      apiKeyStore: InMemoryApiKeyStore(),
+    );
+    await controller.load();
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<SettingsController>.value(
+        value: controller,
+        child: const MaterialApp(home: SettingsPage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final scrollable = find.ancestor(
+      of: find.byKey(const Key('apiKeyField')),
+      matching: find.byType(Scrollable),
+    );
+    await tester.dragUntilVisible(
+      find.byKey(const Key('resourcePackNameField')),
+      scrollable,
+      const Offset(0, -200),
+    );
+    await tester.enterText(
+      find.byKey(const Key('resourcePackNameField')),
+      'CustomPackName',
+    );
+
+    // Enter 確定やフォーカスを外す操作を挟まず、直接保存ボタンを押す。
+    await tester.tap(find.byKey(const Key('saveSettingsButton')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('CustomPackName'),
+      findsOneWidget,
+      reason: '保存後も入力した値が画面に残っていること',
+    );
+    final afterSave = await repository.load();
+    expect(afterSave.translation.resourcePackName, 'CustomPackName');
+  });
+
+  testWidgets('未保存の変更がある状態で閉じようとすると警告ダイアログが表示される', (tester) async {
+    final controller = SettingsController(
+      repository: InMemorySettingsRepository(),
+      apiKeyStore: InMemoryApiKeyStore(),
+    );
+    await controller.load();
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<SettingsController>.value(
+        value: controller,
+        child: MaterialApp(
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: Center(
+                child: ElevatedButton(
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const SettingsPage()),
+                  ),
+                  child: const Text('open'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+
+    await controller.updateTranslation(
+      (s) => s.copyWith(resourcePackName: 'Changed'),
+    );
+    await tester.pump();
+
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+
+    expect(find.text('保存されていない変更があります'), findsOneWidget);
+    // 設定画面はまだ閉じていない。
+    expect(find.byKey(const Key('saveSettingsButton')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('discardChangesCancelButton')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('saveSettingsButton')), findsOneWidget);
+    expect(
+      controller.settings.translation.resourcePackName,
+      'Changed',
+      reason: 'キャンセルではドラフトは破棄されない',
+    );
+
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('discardChangesConfirmButton')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('saveSettingsButton')), findsNothing);
+    expect(
+      controller.settings.translation.resourcePackName,
+      'VillagerTranslator',
+    );
+  });
+
+  testWidgets('未保存の変更がなければ警告なしに閉じられる', (tester) async {
+    final controller = SettingsController(
+      repository: InMemorySettingsRepository(),
+      apiKeyStore: InMemoryApiKeyStore(),
+    );
+    await controller.load();
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<SettingsController>.value(
+        value: controller,
+        child: MaterialApp(
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: Center(
+                child: ElevatedButton(
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const SettingsPage()),
+                  ),
+                  child: const Text('open'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+
+    expect(find.text('保存されていない変更があります'), findsNothing);
+    expect(find.byKey(const Key('saveSettingsButton')), findsNothing);
   });
 
   testWidgets('翻訳実行中に設定画面を開くと注意書きが表示される(#9)', (tester) async {
@@ -153,5 +321,43 @@ void main() {
       controller.settings.translation.resourcePackName,
       'VillagerTranslator',
     );
+  });
+
+  testWidgets('OpenAI 以外のプロバイダーで「デフォルトに戻す」を押しても、選択中プロバイダーと'
+      'その API キー欄の表示が保持される', (tester) async {
+    final apiKeyStore = InMemoryApiKeyStore();
+    final controller = SettingsController(
+      repository: InMemorySettingsRepository(),
+      apiKeyStore: apiKeyStore,
+    );
+    await controller.load();
+    await controller.setProvider(LlmProvider.anthropic);
+    await controller.setApiKey(LlmProvider.anthropic, 'secret-key');
+    await controller.save();
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<SettingsController>.value(
+        value: controller,
+        child: const MaterialApp(home: SettingsPage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('resetToDefaultsButton')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('戻す'));
+    await tester.pumpAndSettle();
+
+    expect(controller.settings.llm.provider, LlmProvider.anthropic);
+    expect(controller.apiKeyFor(LlmProvider.anthropic), 'secret-key');
+    expect(await apiKeyStore.read(LlmProvider.anthropic), 'secret-key');
+
+    final apiKeyFieldText = tester.widget<TextField>(
+      find.descendant(
+        of: find.byKey(const Key('apiKeyField')),
+        matching: find.byType(TextField),
+      ),
+    );
+    expect(apiKeyFieldText.controller?.text, 'secret-key');
   });
 }

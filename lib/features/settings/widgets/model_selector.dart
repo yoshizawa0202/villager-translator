@@ -16,6 +16,7 @@ class ModelSelector extends StatefulWidget {
 
 class _ModelSelectorState extends State<ModelSelector> {
   late final TextEditingController _customModelController;
+  late final FocusNode _customModelFocusNode;
   String? _selectedModel;
 
   @override
@@ -24,11 +25,18 @@ class _ModelSelectorState extends State<ModelSelector> {
     final llm = context.read<SettingsController>().settings.llm;
     _customModelController = TextEditingController(text: llm.customModel);
     _selectedModel = llm.model;
+    _customModelFocusNode = FocusNode()
+      ..addListener(() {
+        if (!_customModelFocusNode.hasFocus) {
+          _saveCustomModel(_customModelController.text);
+        }
+      });
   }
 
   @override
   void dispose() {
     _customModelController.dispose();
+    _customModelFocusNode.dispose();
     super.dispose();
   }
 
@@ -83,28 +91,22 @@ class _ModelSelectorState extends State<ModelSelector> {
           TextFormField(
             key: const Key('customModelField'),
             controller: _customModelController,
+            focusNode: _customModelFocusNode,
             decoration: const InputDecoration(labelText: 'カスタムモデル名'),
             autovalidateMode: AutovalidateMode.onUserInteraction,
             validator: (value) => SettingsValidator.validateCustomModel(
               kCustomModelSentinel,
               value ?? '',
             ),
-            onFieldSubmitted: (value) {
-              context.read<SettingsController>().updateLlm(
-                (s) =>
-                    s.copyWith(model: kCustomModelSentinel, customModel: value),
-              );
-            },
-            onEditingComplete: () {
-              context.read<SettingsController>().updateLlm(
-                (s) => s.copyWith(
-                  model: kCustomModelSentinel,
-                  customModel: _customModelController.text,
-                ),
-              );
-            },
+            onFieldSubmitted: _saveCustomModel,
           ),
       ],
+    );
+  }
+
+  void _saveCustomModel(String value) {
+    context.read<SettingsController>().updateLlm(
+      (s) => s.copyWith(model: kCustomModelSentinel, customModel: value),
     );
   }
 }

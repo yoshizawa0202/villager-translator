@@ -108,21 +108,21 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('スキャン完了'), findsOneWidget);
-    expect(find.byKey(const Key('modRow_moda')), findsOneWidget);
-    expect(find.byKey(const Key('modRow_zmod')), findsOneWidget);
+    expect(find.byKey(const Key('modRow_moda.jar')), findsOneWidget);
+    expect(find.byKey(const Key('modRow_zmod.jar')), findsOneWidget);
     expect(controller.selectedModIds, {'moda', 'zmod'});
 
     // 部分一致検索: "zmod" で絞り込む。
     await tester.enterText(find.byKey(const Key('searchField')), 'zmod');
     await tester.pumpAndSettle();
-    expect(find.byKey(const Key('modRow_moda')), findsNothing);
-    expect(find.byKey(const Key('modRow_zmod')), findsOneWidget);
+    expect(find.byKey(const Key('modRow_moda.jar')), findsNothing);
+    expect(find.byKey(const Key('modRow_zmod.jar')), findsOneWidget);
 
     await tester.enterText(find.byKey(const Key('searchField')), '');
     await tester.pumpAndSettle();
 
     // チェックボックス列: zmod の選択を解除する。
-    await tester.tap(find.byKey(const Key('modRow_zmod')));
+    await tester.tap(find.byKey(const Key('modRow_zmod.jar')));
     await tester.pumpAndSettle();
     expect(controller.selectedModIds, {'moda'});
 
@@ -137,5 +137,56 @@ void main() {
     expect(find.text('完了'), findsOneWidget);
     expect(find.byKey(const Key('translationResultSummary')), findsOneWidget);
     expect(controller.lastResult!.translationResult.translatedModIds, ['moda']);
+  });
+
+  testWidgets('同一 MOD ID を持つ JAR が複数あってもテーブルが例外なく描画される', (tester) async {
+    // 同じ MOD ID を宣言する JAR が mods/ に複数存在するケース(例: 新旧バージョンの
+    // 残存)。行の Key を MOD ID だけで組み立てると Table の重複 Key 検証に
+    // 引っかかってクラッシュするため、JAR ごとに一意な jarRelativePath で
+    // 一意性を担保できているかを確認する。
+    late Directory duplicateIdDir;
+    await tester.runAsync(() async {
+      duplicateIdDir = await Directory.systemTemp.createTemp(
+        'mod_translation_page_test_dup_',
+      );
+      await writeFakeJar(
+        File(p.join(duplicateIdDir.path, 'mods', 'dupmod-1.0.jar')),
+        {
+          'fabric.mod.json':
+              '{"id": "dupmod", "name": "Dup Mod", "version": "1.0"}',
+          'assets/dupmod/lang/en_us.json': '{"item.a": "Item A"}',
+        },
+      );
+      await writeFakeJar(
+        File(p.join(duplicateIdDir.path, 'mods', 'dupmod-1.1.jar')),
+        {
+          'fabric.mod.json':
+              '{"id": "dupmod", "name": "Dup Mod", "version": "1.1"}',
+          'assets/dupmod/lang/en_us.json': '{"item.a": "Item A v2"}',
+        },
+      );
+    });
+    addTearDown(() async {
+      if (await duplicateIdDir.exists()) {
+        await duplicateIdDir.delete(recursive: true);
+      }
+    });
+
+    final controller = await pumpPage(tester);
+
+    await tester.enterText(
+      find.byKey(const Key('profileDirectoryField')),
+      duplicateIdDir.path,
+    );
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pumpAndSettle();
+
+    await tester.runAsync(() => controller.scan());
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('スキャン完了'), findsOneWidget);
+    expect(find.byKey(const Key('modRow_dupmod-1.0.jar')), findsOneWidget);
+    expect(find.byKey(const Key('modRow_dupmod-1.1.jar')), findsOneWidget);
   });
 }
