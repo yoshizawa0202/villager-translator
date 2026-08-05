@@ -56,7 +56,7 @@ void main() {
       expect(controller.settings.llm.maxRetries, 3);
     });
 
-    test('有効な値は保存され、再読み込みでも反映される', () async {
+    test('有効な値はドラフトへ即座に反映されるが、save() を呼ぶまでディスクへ反映されない', () async {
       final controller = SettingsController(
         repository: repository,
         apiKeyStore: InMemoryApiKeyStore(),
@@ -67,9 +67,15 @@ void main() {
         (s) => s.copyWith(resourcePackName: 'CustomPack'),
       );
       expect(error, isNull);
+      expect(controller.settings.translation.resourcePackName, 'CustomPack');
 
-      final reloaded = await repository.load();
-      expect(reloaded.translation.resourcePackName, 'CustomPack');
+      final beforeSave = await repository.load();
+      expect(beforeSave.translation.resourcePackName, 'VillagerTranslator');
+
+      await controller.save();
+
+      final afterSave = await repository.load();
+      expect(afterSave.translation.resourcePackName, 'CustomPack');
     });
   });
 
@@ -83,6 +89,7 @@ void main() {
       await controller.load();
 
       await controller.setApiKey(LlmProvider.openai, 'secret-key');
+      await controller.save();
       await controller.updateTranslation(
         (s) => s.copyWith(resourcePackName: 'Changed'),
       );
@@ -95,6 +102,112 @@ void main() {
       );
       expect(controller.apiKeyFor(LlmProvider.openai), 'secret-key');
       expect(await apiKeyStore.read(LlmProvider.openai), 'secret-key');
+    });
+
+    test('OpenAI 以外を選択中の場合、プロバイダー選択を維持したまま初期値に戻る', () async {
+      final apiKeyStore = InMemoryApiKeyStore();
+      final controller = SettingsController(
+        repository: repository,
+        apiKeyStore: apiKeyStore,
+      );
+      await controller.load();
+
+      await controller.setProvider(LlmProvider.anthropic);
+      await controller.setApiKey(LlmProvider.anthropic, 'secret-key');
+      await controller.save();
+      await controller.updateLlm((s) => s.copyWith(temperature: 0.2));
+
+      await controller.resetToDefaults();
+
+      expect(controller.settings.llm.provider, LlmProvider.anthropic);
+      expect(controller.settings.llm.temperature, 1.0);
+      expect(controller.apiKeyFor(LlmProvider.anthropic), 'secret-key');
+      expect(await apiKeyStore.read(LlmProvider.anthropic), 'secret-key');
+    });
+
+    test('保存ボタンを介さず即時に永続化され、現在のテーマ設定には影響しない', () async {
+      final controller = SettingsController(
+        repository: repository,
+        apiKeyStore: InMemoryApiKeyStore(),
+      );
+      await controller.load();
+      await controller.setThemeMode(AppThemeMode.dark);
+
+      await controller.updateTranslation(
+        (s) => s.copyWith(resourcePackName: 'Changed'),
+      );
+      await controller.resetToDefaults();
+
+      final reloaded = await repository.load();
+      expect(reloaded.translation.resourcePackName, 'VillagerTranslator');
+      expect(reloaded.themeMode, AppThemeMode.dark);
+      expect(controller.settings.themeMode, AppThemeMode.dark);
+    });
+  });
+
+  group('SettingsController.hasUnsavedChanges / discardChanges', () {
+    test('ドラフトを変更すると true になり、save() 後は false に戻る', () async {
+      final controller = SettingsController(
+        repository: repository,
+        apiKeyStore: InMemoryApiKeyStore(),
+      );
+      await controller.load();
+      expect(controller.hasUnsavedChanges, isFalse);
+
+      await controller.updateTranslation(
+        (s) => s.copyWith(resourcePackName: 'Changed'),
+      );
+      expect(controller.hasUnsavedChanges, isTrue);
+
+      await controller.save();
+      expect(controller.hasUnsavedChanges, isFalse);
+    });
+
+    test('discardChanges で翻訳設定・API キーのドラフトが直近の永続化状態に戻る', () async {
+      final apiKeyStore = InMemoryApiKeyStore();
+      final controller = SettingsController(
+        repository: repository,
+        apiKeyStore: apiKeyStore,
+      );
+      await controller.load();
+      await controller.setApiKey(LlmProvider.openai, 'saved-key');
+      await controller.save();
+
+      await controller.updateTranslation(
+        (s) => s.copyWith(resourcePackName: 'Unsaved'),
+      );
+      await controller.setApiKey(LlmProvider.openai, 'unsaved-key');
+      expect(controller.hasUnsavedChanges, isTrue);
+
+      controller.discardChanges();
+
+      expect(controller.hasUnsavedChanges, isFalse);
+      expect(
+        controller.settings.translation.resourcePackName,
+        'VillagerTranslator',
+      );
+      expect(controller.apiKeyFor(LlmProvider.openai), 'saved-key');
+      expect(await apiKeyStore.read(LlmProvider.openai), 'saved-key');
+    });
+
+    test('setThemeMode は保存ボタンを介さず即時に永続化され、未保存のドラフト変更を巻き込まない', () async {
+      final controller = SettingsController(
+        repository: repository,
+        apiKeyStore: InMemoryApiKeyStore(),
+      );
+      await controller.load();
+
+      await controller.updateTranslation(
+        (s) => s.copyWith(resourcePackName: 'StillUnsaved'),
+      );
+      await controller.setThemeMode(AppThemeMode.dark);
+
+      expect(controller.hasUnsavedChanges, isTrue);
+      expect(controller.settings.translation.resourcePackName, 'StillUnsaved');
+
+      final reloaded = await repository.load();
+      expect(reloaded.themeMode, AppThemeMode.dark);
+      expect(reloaded.translation.resourcePackName, 'VillagerTranslator');
     });
   });
 
@@ -133,6 +246,7 @@ void main() {
           LlmProvider.anthropic,
           'restart-test-key',
         );
+        await firstController.save();
 
         final secondController = SettingsController(
           repository: repository,
@@ -158,6 +272,55 @@ void main() {
 
       final settingsJson = controller.settings.toJson();
       expect(settingsJson.toString().contains('gemini-key'), isFalse);
+    });
+  });
+
+  group('SettingsController.lastSavedAt(保存状態インジケーター用、#9)', () {
+    test('読み込み直後は null で、ドラフト変更だけでは更新されず save() で更新される', () async {
+      final controller = SettingsController(
+        repository: repository,
+        apiKeyStore: InMemoryApiKeyStore(),
+      );
+      await controller.load();
+
+      expect(controller.lastSavedAt, isNull);
+
+      await controller.updateTranslation(
+        (s) => s.copyWith(resourcePackName: 'Changed'),
+      );
+      expect(controller.lastSavedAt, isNull);
+
+      await controller.save();
+      expect(controller.lastSavedAt, isNotNull);
+    });
+
+    test('検証エラーで保存が行われなかった場合は更新されない', () async {
+      final controller = SettingsController(
+        repository: repository,
+        apiKeyStore: InMemoryApiKeyStore(),
+      );
+      await controller.load();
+
+      final error = await controller.updateLlm(
+        (s) => s.copyWith(temperature: 9.9),
+      );
+
+      expect(error, isNotNull);
+      expect(controller.lastSavedAt, isNull);
+    });
+
+    test('API キーの保存でも save() を呼ぶと更新される', () async {
+      final controller = SettingsController(
+        repository: repository,
+        apiKeyStore: InMemoryApiKeyStore(),
+      );
+      await controller.load();
+
+      await controller.setApiKey(LlmProvider.openai, 'secret-key');
+      expect(controller.lastSavedAt, isNull);
+
+      await controller.save();
+      expect(controller.lastSavedAt, isNotNull);
     });
   });
 

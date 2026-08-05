@@ -17,6 +17,8 @@ class PromptEditorSection extends StatefulWidget {
 class _PromptEditorSectionState extends State<PromptEditorSection> {
   late final TextEditingController _systemController;
   late final TextEditingController _userController;
+  late final FocusNode _systemFocusNode;
+  late final FocusNode _userFocusNode;
 
   @override
   void initState() {
@@ -24,12 +26,26 @@ class _PromptEditorSectionState extends State<PromptEditorSection> {
     final llm = context.read<SettingsController>().settings.llm;
     _systemController = TextEditingController(text: llm.systemPrompt);
     _userController = TextEditingController(text: llm.userPrompt);
+    _systemFocusNode = FocusNode()
+      ..addListener(() {
+        if (!_systemFocusNode.hasFocus) {
+          _saveSystemPrompt(context, _systemController.text);
+        }
+      });
+    _userFocusNode = FocusNode()
+      ..addListener(() {
+        if (!_userFocusNode.hasFocus) {
+          _saveUserPrompt(context, _userController.text);
+        }
+      });
   }
 
   @override
   void dispose() {
     _systemController.dispose();
     _userController.dispose();
+    _systemFocusNode.dispose();
+    _userFocusNode.dispose();
     super.dispose();
   }
 
@@ -55,35 +71,31 @@ class _PromptEditorSectionState extends State<PromptEditorSection> {
         TextFormField(
           key: const Key('systemPromptField'),
           controller: _systemController,
+          focusNode: _systemFocusNode,
           decoration: const InputDecoration(labelText: 'システムプロンプト'),
           maxLines: 6,
-          onFieldSubmitted: (value) => _saveSystemPrompt(context, value),
-          onEditingComplete: () =>
-              _saveSystemPrompt(context, _systemController.text),
         ),
         const SizedBox(height: 16),
         TextFormField(
           key: const Key('userPromptField'),
           controller: _userController,
+          focusNode: _userFocusNode,
           decoration: const InputDecoration(labelText: 'ユーザープロンプト'),
           maxLines: 6,
-          onFieldSubmitted: (value) => _saveUserPrompt(context, value),
-          onEditingComplete: () =>
-              _saveUserPrompt(context, _userController.text),
         ),
       ],
     );
   }
 
   void _saveSystemPrompt(BuildContext context, String value) {
-    context.read<SettingsController>().updateLlm(
-      (s) => s.copyWith(systemPrompt: value),
-    );
+    final controller = context.read<SettingsController>();
+    if (value == controller.settings.llm.systemPrompt) return;
+    controller.updateLlm((s) => s.copyWith(systemPrompt: value));
   }
 
   void _saveUserPrompt(BuildContext context, String value) {
-    context.read<SettingsController>().updateLlm(
-      (s) => s.copyWith(userPrompt: value),
-    );
+    final controller = context.read<SettingsController>();
+    if (value == controller.settings.llm.userPrompt) return;
+    controller.updateLlm((s) => s.copyWith(userPrompt: value));
   }
 }

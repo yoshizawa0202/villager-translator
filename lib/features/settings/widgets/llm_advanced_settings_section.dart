@@ -17,6 +17,8 @@ class _LlmAdvancedSettingsSectionState
     extends State<LlmAdvancedSettingsSection> {
   late final TextEditingController _maxRetriesController;
   late final TextEditingController _temperatureController;
+  late final FocusNode _maxRetriesFocusNode;
+  late final FocusNode _temperatureFocusNode;
 
   @override
   void initState() {
@@ -28,12 +30,26 @@ class _LlmAdvancedSettingsSectionState
     _temperatureController = TextEditingController(
       text: llm.temperature.toString(),
     );
+    _maxRetriesFocusNode = FocusNode()
+      ..addListener(() {
+        if (!_maxRetriesFocusNode.hasFocus) {
+          _saveMaxRetries(context, _maxRetriesController.text);
+        }
+      });
+    _temperatureFocusNode = FocusNode()
+      ..addListener(() {
+        if (!_temperatureFocusNode.hasFocus) {
+          _saveTemperature(context, _temperatureController.text);
+        }
+      });
   }
 
   @override
   void dispose() {
     _maxRetriesController.dispose();
     _temperatureController.dispose();
+    _maxRetriesFocusNode.dispose();
+    _temperatureFocusNode.dispose();
     super.dispose();
   }
 
@@ -58,6 +74,7 @@ class _LlmAdvancedSettingsSectionState
           child: TextFormField(
             key: const Key('maxRetriesField'),
             controller: _maxRetriesController,
+            focusNode: _maxRetriesFocusNode,
             decoration: const InputDecoration(labelText: '最大リトライ回数'),
             keyboardType: TextInputType.number,
             autovalidateMode: AutovalidateMode.onUserInteraction,
@@ -67,8 +84,6 @@ class _LlmAdvancedSettingsSectionState
               return SettingsValidator.validateMaxRetries(parsed);
             },
             onFieldSubmitted: (value) => _saveMaxRetries(context, value),
-            onEditingComplete: () =>
-                _saveMaxRetries(context, _maxRetriesController.text),
           ),
         ),
         const SizedBox(width: 16),
@@ -76,6 +91,7 @@ class _LlmAdvancedSettingsSectionState
           child: TextFormField(
             key: const Key('temperatureField'),
             controller: _temperatureController,
+            focusNode: _temperatureFocusNode,
             decoration: const InputDecoration(labelText: 'temperature'),
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             autovalidateMode: AutovalidateMode.onUserInteraction,
@@ -85,8 +101,6 @@ class _LlmAdvancedSettingsSectionState
               return SettingsValidator.validateTemperature(parsed);
             },
             onFieldSubmitted: (value) => _saveTemperature(context, value),
-            onEditingComplete: () =>
-                _saveTemperature(context, _temperatureController.text),
           ),
         ),
       ],
@@ -96,16 +110,16 @@ class _LlmAdvancedSettingsSectionState
   void _saveMaxRetries(BuildContext context, String value) {
     final parsed = int.tryParse(value);
     if (parsed == null) return;
-    context.read<SettingsController>().updateLlm(
-      (s) => s.copyWith(maxRetries: parsed),
-    );
+    final controller = context.read<SettingsController>();
+    if (parsed == controller.settings.llm.maxRetries) return;
+    controller.updateLlm((s) => s.copyWith(maxRetries: parsed));
   }
 
   void _saveTemperature(BuildContext context, String value) {
     final parsed = double.tryParse(value);
     if (parsed == null) return;
-    context.read<SettingsController>().updateLlm(
-      (s) => s.copyWith(temperature: parsed),
-    );
+    final controller = context.read<SettingsController>();
+    if (parsed == controller.settings.llm.temperature) return;
+    controller.updateLlm((s) => s.copyWith(temperature: parsed));
   }
 }

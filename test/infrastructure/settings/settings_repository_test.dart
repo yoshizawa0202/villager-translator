@@ -56,5 +56,18 @@ void main() {
       expect(rawText.contains(fakeApiKey), isFalse);
       expect(rawText.contains('apiKey'), isFalse);
     });
+
+    test('save を同時に複数回呼び出しても例外にならず最終値が復元できる', () async {
+      final settings = AppSettings.defaults().copyWith(
+        translation: AppSettings.defaults().translation.copyWith(
+          modChunkSize: 42,
+        ),
+      );
+
+      await Future.wait(List.generate(10, (_) => repository.save(settings)));
+
+      final loaded = await repository.load();
+      expect(loaded.translation.modChunkSize, 42);
+    });
   });
 }
