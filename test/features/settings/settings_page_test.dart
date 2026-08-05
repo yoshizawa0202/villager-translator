@@ -148,6 +148,12 @@ void main() {
       scrollable,
       const Offset(0, -200),
     );
+    // dragUntilVisible はウィジェットが ListView のキャッシュ範囲に入った時点で
+    // 停止するため、ビューポート外(キャッシュのみ)に留まっている場合がある。
+    // tap() は実際の画面上の座標にヒットする必要があるため、
+    // ensureVisible で確実にビューポート内へスクロールしてからタップする。
+    await tester.ensureVisible(find.byKey(const Key('resourcePackNameField')));
+    await tester.pumpAndSettle();
 
     await tester.tap(find.byKey(const Key('resourcePackNameField')));
     await tester.pump();
