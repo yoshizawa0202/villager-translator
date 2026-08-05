@@ -134,9 +134,7 @@ void main() {
     expect(afterSave.translation.resourcePackName, 'Changed');
   });
 
-  testWidgets('テキスト欄にフォーカスしただけで値を変更せずに外しても未保存扱いにならない', (
-    tester,
-  ) async {
+  testWidgets('テキスト欄にフォーカスしただけで値を変更せずに外しても未保存扱いにならない', (tester) async {
     final controller = await pumpSettingsPage(tester);
 
     final scrollable = find.ancestor(
@@ -162,6 +160,21 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(controller.hasUnsavedChanges, isFalse);
+
+    // 保存ステータス表示は ListView 上部にあり、直前のスクロールで
+    // キャッシュ範囲外に出てビルドされていない可能性がある。ドラッグ操作で
+    // 戻そうとすると、ドラッグの起点がテキスト入力欄の上に重なりジェスチャーが
+    // スクロールではなくテキスト選択として消費されてしまうため、
+    // ScrollPosition を直接操作してビューポート先頭へ戻す。
+    final scrollableState = tester.state<ScrollableState>(
+      find.ancestor(
+        of: find.byKey(const Key('resourcePackNameField')),
+        matching: find.byType(Scrollable),
+      ),
+    );
+    scrollableState.position.jumpTo(0);
+    await tester.pumpAndSettle();
+
     expect(find.text('変更後に「保存」ボタンを押すと反映されます'), findsOneWidget);
   });
 
