@@ -94,6 +94,7 @@ class ModTranslationOrchestrator {
     CancellationToken? cancellationToken,
     SingleFileProgressCallback? onSingleFileProgress,
     OverallProgressCallback? onOverallProgress,
+    ItemChunkResultCallback? onChunkResult,
   }) async {
     final adapter = _adapterFactory.create(
       settings.llm.provider,
@@ -143,6 +144,7 @@ class ModTranslationOrchestrator {
       cancellationToken: cancellationToken,
       onSingleFileProgress: onSingleFileProgress,
       onOverallProgress: onOverallProgress,
+      onChunkResult: onChunkResult,
     );
 
     final summary = _buildSummary(

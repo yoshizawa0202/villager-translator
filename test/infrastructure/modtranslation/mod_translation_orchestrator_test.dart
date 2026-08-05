@@ -219,4 +219,36 @@ void main() {
     final resourcePacksDir = Directory(p.join(tempDir.path, 'resourcepacks'));
     expect(await resourcePacksDir.exists(), isFalse);
   });
+
+  test('onChunkResult が MOD 名付きでオーケストレーターを通じて通知される(Issue#10)', () async {
+    await writeFakeJar(File(p.join(tempDir.path, 'mods', 'moda.jar')), {
+      'fabric.mod.json': '{"id": "moda", "name": "Mod A", "version": "1.0"}',
+      'assets/moda/lang/en_us.json': '{"item.a": "Item A"}',
+    });
+
+    final orchestrator = ModTranslationOrchestrator(
+      adapterFactory: _FakeAdapterFactory(),
+    );
+    final scanResult = await orchestrator.scan(
+      profileDirectory: tempDir,
+      targetLanguageId: 'ja_jp',
+    );
+
+    final labels = <String>[];
+    await orchestrator.translateAndPack(
+      profileDirectory: tempDir,
+      selectedEntries: scanResult.entries,
+      targetLanguageId: 'ja_jp',
+      targetLanguageDisplayName: '日本語',
+      settings: AppSettings.defaults(),
+      apiKey: 'test-key',
+      sessionId: '20260803-120003',
+      onChunkResult: (itemLabel, result) {
+        labels.add(itemLabel);
+        expect(result.success, isTrue);
+      },
+    );
+
+    expect(labels, ['Mod A']);
+  });
 }

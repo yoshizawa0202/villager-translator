@@ -67,6 +67,7 @@ class QuestTranslationOrchestrator {
     CancellationToken? cancellationToken,
     SingleFileProgressCallback? onSingleFileProgress,
     OverallProgressCallback? onOverallProgress,
+    ItemChunkResultCallback? onChunkResult,
   }) async {
     final snbtEntries = selectedEntries
         .where((e) => e.format == QuestFormat.ftbQuestsSnbt)
@@ -113,6 +114,7 @@ class QuestTranslationOrchestrator {
       cancellationToken: cancellationToken,
       onSingleFileProgress: onSingleFileProgress,
       onOverallProgress: onOverallProgress,
+      onChunkResult: onChunkResult,
     );
 
     final writtenFiles = <File>[];

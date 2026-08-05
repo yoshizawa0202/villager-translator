@@ -78,6 +78,7 @@ Future<ModTranslationResult> translateSelectedMods({
   CancellationToken? cancellationToken,
   SingleFileProgressCallback? onSingleFileProgress,
   OverallProgressCallback? onOverallProgress,
+  ItemChunkResultCallback? onChunkResult,
 }) async {
   final orderedEntries = sortModEntriesById(selectedEntries);
 
@@ -143,6 +144,8 @@ Future<ModTranslationResult> translateSelectedMods({
       onChunkComplete: (completed, total) => onSingleFileProgress?.call(
         ChunkProgress(completedChunks: completed, totalChunks: total),
       ),
+      onChunkResult: (result) =>
+          onChunkResult?.call(entry.modInfo.name, result),
     );
 
     final newlyTranslated = <String, String>{};

@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:villager_translator/domain/common/cancellation_token.dart';
+import 'package:villager_translator/domain/common/translation_progress.dart';
 import 'package:villager_translator/domain/llm/llm_api_exception.dart';
 import 'package:villager_translator/domain/translation/retry_policy.dart';
 
@@ -215,6 +216,64 @@ void main() {
         [1, 2],
         [2, 2],
       ]);
+    });
+
+    test('onChunkResult が成功チャンクをリトライ回数付きで通知する', () async {
+      final chunks = [
+        {'a': '1'},
+      ];
+      final results = <ChunkResult>[];
+      var callCount = 0;
+
+      await translateChunksWithPartialSuccess(
+        chunks,
+        translateChunk: (chunk) async {
+          callCount++;
+          if (callCount < 2) {
+            throw const LlmApiException(message: '一時的な障害', statusCode: 500);
+          }
+          return {'a': 'translated'};
+        },
+        maxRetries: 3,
+        waiter: (_) async {},
+        onChunkResult: results.add,
+      );
+
+      expect(results, hasLength(1));
+      expect(results.single.success, isTrue);
+      expect(results.single.retryCount, 1);
+      expect(results.single.chunkIndex, 0);
+      expect(results.single.totalChunks, 1);
+      expect(results.single.keyCount, 1);
+    });
+
+    test('onChunkResult がリトライを使い切ったチャンクを失敗として通知する', () async {
+      final chunks = [
+        {'a': '1'},
+        {'b': '2'},
+      ];
+      final results = <ChunkResult>[];
+
+      await translateChunksWithPartialSuccess(
+        chunks,
+        translateChunk: (chunk) async {
+          if (chunk.containsKey('b')) {
+            throw const LlmApiException(message: '常に失敗', statusCode: 500);
+          }
+          return {
+            for (final e in chunk.entries) e.key: '${e.value}_translated',
+          };
+        },
+        maxRetries: 1,
+        waiter: (_) async {},
+        onChunkResult: results.add,
+      );
+
+      expect(results, hasLength(2));
+      expect(results[0].success, isTrue);
+      expect(results[1].success, isFalse);
+      expect(results[1].retryCount, 1);
+      expect(results[1].error, isA<LlmApiException>());
     });
   });
 }

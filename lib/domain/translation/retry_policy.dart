@@ -1,4 +1,5 @@
 import '../common/cancellation_token.dart';
+import '../common/translation_progress.dart';
 import '../llm/llm_api_exception.dart';
 
 /// チャンク1件を翻訳する関数(通常は `LlmAdapter.translate` の呼び出しを包む)。
@@ -28,17 +29,22 @@ Duration resolveRetryWait(Object error, int attempt) {
   return Duration(seconds: attempt);
 }
 
+/// 失敗した試行のたびに呼ばれる観測用コールバック(リトライ前に発火)。
+typedef ChunkRetryObserver = void Function(int attempt, Object error);
+
 /// 1チャンクを [maxRetries] 回まで(既定3回)リトライしながら翻訳する
 /// (feature-spec.md §5.3)。
 ///
 /// 401/403 相当の認証エラーはリトライせず即座に例外を再送出する。
 /// それ以外のエラーはリトライ回数を使い切るまで [waiter] で待機して再試行し、
 /// 使い切った場合は最後の例外を再送出する(スキップ判断は呼び出し側で行う)。
+/// 失敗するたびに(リトライ前に) [onRetry] を呼び、試行回数とエラーを通知する。
 Future<Map<String, String>> translateChunkWithRetry(
   Map<String, String> chunk, {
   required ChunkTranslator translateChunk,
   int maxRetries = 3,
   RetryWaiter waiter = _defaultWaiter,
+  ChunkRetryObserver? onRetry,
 }) async {
   var attempt = 0;
   while (true) {
@@ -52,6 +58,7 @@ Future<Map<String, String>> translateChunkWithRetry(
       if (attempt > maxRetries) {
         rethrow;
       }
+      onRetry?.call(attempt, error);
       await waiter(resolveRetryWait(error, attempt));
     }
   }
@@ -67,6 +74,8 @@ Future<Map<String, String>> translateChunkWithRetry(
 /// その時点までの結果を返す(実行中のチャンクは中断しない、feature-spec.md
 /// §10、008-progress-log-history.md 受け入れ条件5)。[onChunkComplete] は
 /// 各チャンクの処理後(成功・失敗を問わず)に完了数/総数を通知する。
+/// [onChunkResult] は各チャンクの最終結果(成功/失敗・リトライ回数・エラー)を
+/// 通知する(Issue#10: 粒度の細かいデバッグログ用)。
 Future<List<Map<String, String>>> translateChunksWithPartialSuccess(
   List<Map<String, String>> chunks, {
   required ChunkTranslator translateChunk,
@@ -74,6 +83,7 @@ Future<List<Map<String, String>>> translateChunksWithPartialSuccess(
   RetryWaiter waiter = _defaultWaiter,
   CancellationToken? cancellationToken,
   void Function(int completedChunks, int totalChunks)? onChunkComplete,
+  ChunkResultCallback? onChunkResult,
 }) async {
   final results = <Map<String, String>>[];
 
@@ -82,19 +92,40 @@ Future<List<Map<String, String>>> translateChunksWithPartialSuccess(
       break;
     }
 
+    var retryCount = 0;
     try {
       final translated = await translateChunkWithRetry(
         chunks[i],
         translateChunk: translateChunk,
         maxRetries: maxRetries,
         waiter: waiter,
+        onRetry: (attempt, error) => retryCount = attempt,
       );
       results.add(translated);
+      onChunkResult?.call(
+        ChunkResult(
+          chunkIndex: i,
+          totalChunks: chunks.length,
+          keyCount: chunks[i].length,
+          success: true,
+          retryCount: retryCount,
+        ),
+      );
     } catch (error) {
       if (isAuthError(error)) {
         rethrow;
       }
       // リトライ使い切り: このチャンクはスキップして次のチャンクへ進む。
+      onChunkResult?.call(
+        ChunkResult(
+          chunkIndex: i,
+          totalChunks: chunks.length,
+          keyCount: chunks[i].length,
+          success: false,
+          retryCount: retryCount,
+          error: error,
+        ),
+      );
     }
 
     onChunkComplete?.call(i + 1, chunks.length);

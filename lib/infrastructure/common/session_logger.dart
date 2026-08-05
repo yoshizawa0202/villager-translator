@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 
+import '../../domain/common/translation_summary.dart';
 import 'session_paths.dart';
 
 /// ログの重大度(feature-spec.md §11)。
@@ -72,13 +73,27 @@ class LogEntry {
 ///
 /// [beginSession] を呼ぶまではメモリ上のリングバッファのみを更新し、ディスクへ
 /// は書き込まない(スキャン中などセッションディレクトリがまだ無い状態のログ用)。
+///
+/// ログの保存先は2系統(Issue#10)。
+/// - **プロファイルログ**([profileDirectory] 配下): [isMilestone] が
+///   `true` のエントリ(開始・対象ファイルごとの成功/失敗・完了サマリ・
+///   トップレベルの例外)のみを書き出す粗い粒度のログ。
+/// - **アプリケーションログ**([applicationSupportDirectory] 配下、
+///   プロファイルに依存しない): [isMilestone] の値に関わらず全エントリ
+///   (チャンク単位の詳細な実行内容・結果を含む)を書き出す。
+///   [applicationSupportDirectory] が `null` の場合は書き出さない。
 class SessionLogger extends ChangeNotifier {
-  SessionLogger({int capacity = 500}) : _capacity = capacity;
+  SessionLogger({int capacity = 500, this.applicationSupportDirectory})
+    : _capacity = capacity;
 
   final int _capacity;
   final Queue<LogEntry> _entries = Queue<LogEntry>();
 
-  IOSink? _sink;
+  /// アプリケーションログの書き出し先(`{ここ}/logs/localizer/{sessionId}/`)。
+  final Directory? applicationSupportDirectory;
+
+  IOSink? _profileSink;
+  IOSink? _applicationSink;
 
   /// 直近 [_capacity] 件のログ(古い順)。
   List<LogEntry> get entries => List.unmodifiable(_entries);
@@ -90,12 +105,24 @@ class SessionLogger extends ChangeNotifier {
     required String sessionId,
   }) async {
     await endSession();
-    final paths = SessionPaths(
+    final profilePaths = SessionPaths(
       profileDirectory: profileDirectory,
       sessionId: sessionId,
     );
-    await paths.sessionDirectory.create(recursive: true);
-    _sink = paths.logFile.openWrite(mode: FileMode.append);
+    await profilePaths.sessionDirectory.create(recursive: true);
+    _profileSink = profilePaths.logFile.openWrite(mode: FileMode.append);
+
+    final applicationDirectory = applicationSupportDirectory;
+    if (applicationDirectory != null) {
+      final applicationPaths = SessionPaths(
+        profileDirectory: applicationDirectory,
+        sessionId: sessionId,
+      );
+      await applicationPaths.sessionDirectory.create(recursive: true);
+      _applicationSink = applicationPaths.logFile.openWrite(
+        mode: FileMode.append,
+      );
+    }
   }
 
   void log(
@@ -116,17 +143,48 @@ class SessionLogger extends ChangeNotifier {
     while (_entries.length > _capacity) {
       _entries.removeFirst();
     }
-    _sink?.writeln(entry.toLogLine());
+    _applicationSink?.writeln(entry.toLogLine());
+    if (isMilestone) {
+      _profileSink?.writeln(entry.toLogLine());
+    }
     notifyListeners();
   }
 
   /// 現在のセッションのログファイルを閉じる(セッションが開いていなければ何もしない)。
+  ///
+  /// 2系統のシンクは互いに独立してクローズする。一方の flush/close が例外を
+  /// 投げても、もう一方のファイルハンドルがリークしないようにするため。
   Future<void> endSession() async {
-    final sink = _sink;
-    _sink = null;
-    if (sink != null) {
-      await sink.flush();
-      await sink.close();
+    final profileSink = _profileSink;
+    _profileSink = null;
+    final applicationSink = _applicationSink;
+    _applicationSink = null;
+
+    Object? firstError;
+    StackTrace? firstStackTrace;
+
+    if (profileSink != null) {
+      try {
+        await profileSink.flush();
+        await profileSink.close();
+      } catch (error, stackTrace) {
+        firstError = error;
+        firstStackTrace = stackTrace;
+      }
+    }
+
+    if (applicationSink != null) {
+      try {
+        await applicationSink.flush();
+        await applicationSink.close();
+      } catch (error, stackTrace) {
+        firstError ??= error;
+        firstStackTrace ??= stackTrace;
+      }
+    }
+
+    if (firstError != null) {
+      Error.throwWithStackTrace(firstError, firstStackTrace!);
     }
   }
 
@@ -134,5 +192,24 @@ class SessionLogger extends ChangeNotifier {
   void dispose() {
     unawaited(endSession());
     super.dispose();
+  }
+}
+
+/// [TranslationSummary] を対象ファイル単位の粗いログとして書き出す
+/// (Issue#10: 「何の MOD ファイルに対し、翻訳が成功・失敗したか」)。
+/// [isMilestone] 付きで記録するため、プロファイルログにも残る。
+extension SessionLoggerSummaryLogging on SessionLogger {
+  void logSummaryItems(TranslationSummary summary) {
+    for (final item in summary.items) {
+      final label = item.displayName ?? item.id;
+      log(
+        item.success ? LogLevel.info : LogLevel.warning,
+        'translate.item',
+        '[${item.type.name}] $label: '
+            '${item.success ? '成功' : '失敗'} '
+            '(${item.translatedKeyCount}/${item.totalKeyCount} キー)',
+        isMilestone: true,
+      );
+    }
   }
 }
