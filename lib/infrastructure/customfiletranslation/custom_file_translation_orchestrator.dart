@@ -71,6 +71,7 @@ class CustomFileTranslationOrchestrator {
     SingleFileProgressCallback? onSingleFileProgress,
     OverallProgressCallback? onOverallProgress,
     ItemChunkResultCallback? onChunkResult,
+    CurrentItemCallback? onItemStarted,
   }) async {
     final adapter = _adapterFactory.create(
       settings.llm.provider,
@@ -99,6 +100,7 @@ class CustomFileTranslationOrchestrator {
       onSingleFileProgress: onSingleFileProgress,
       onOverallProgress: onOverallProgress,
       onChunkResult: onChunkResult,
+      onItemStarted: onItemStarted,
     );
 
     final summary = _buildSummary(

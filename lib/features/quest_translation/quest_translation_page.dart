@@ -6,6 +6,7 @@ import '../../infrastructure/questtranslation/quest_translation_orchestrator.dar
 import '../settings/settings_controller.dart';
 import '../shell/widgets/log_viewer_dialog.dart';
 import '../shell/widgets/translation_completion_dialog.dart';
+import '../shell/widgets/translation_progress_panel.dart';
 import 'quest_translation_controller.dart';
 
 /// クエストタブ画面(feature-spec.md §7)。
@@ -162,6 +163,14 @@ class QuestTranslationTabViewState extends State<QuestTranslationTabView> {
               ),
             ],
           ),
+          if (controller.state == QuestTabState.translating) ...[
+            const SizedBox(height: 12),
+            TranslationProgressPanel(
+              overallProgress: controller.overallProgress,
+              singleFileProgress: controller.singleFileProgress,
+              currentItemName: controller.currentItemName,
+            ),
+          ],
           if (controller.errorMessage != null) ...[
             const SizedBox(height: 8),
             Text(

@@ -57,6 +57,7 @@ Future<QuestTranslationResult> translateQuestEntries({
   SingleFileProgressCallback? onSingleFileProgress,
   OverallProgressCallback? onOverallProgress,
   ItemChunkResultCallback? onChunkResult,
+  CurrentItemCallback? onItemStarted,
 }) async {
   final orderedEntries = selectedEntries.toList()
     ..sort((a, b) => a.relativePath.compareTo(b.relativePath));
@@ -80,6 +81,7 @@ Future<QuestTranslationResult> translateQuestEntries({
     if (cancellationToken?.isCancelled ?? false) {
       break;
     }
+    onItemStarted?.call(entry.relativePath);
 
     if (entry.sourceEntries.isEmpty) {
       skippedPaths.add(entry.relativePath);

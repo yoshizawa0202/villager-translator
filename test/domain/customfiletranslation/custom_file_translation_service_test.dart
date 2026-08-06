@@ -150,5 +150,20 @@ void main() {
 
       expect(labels, ['a.json']);
     });
+
+    test('onItemStarted が処理着手ごとにファイルの相対パスを通知する(Issue#7)', () async {
+      final entryA = _jsonEntry('a.json', {'a': '1'});
+      final entryB = _jsonEntry('b.json', {'a': '1'});
+      final started = <String>[];
+
+      await translateCustomFileEntries(
+        selectedEntries: [entryA, entryB],
+        translateChunk: (chunk) async =>
+            chunk.map((k, v) => MapEntry(k, '[訳]$v')),
+        onItemStarted: started.add,
+      );
+
+      expect(started, ['a.json', 'b.json']);
+    });
   });
 }

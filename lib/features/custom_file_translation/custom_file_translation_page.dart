@@ -6,6 +6,7 @@ import '../../infrastructure/customfiletranslation/custom_file_translation_orche
 import '../settings/settings_controller.dart';
 import '../shell/widgets/log_viewer_dialog.dart';
 import '../shell/widgets/translation_completion_dialog.dart';
+import '../shell/widgets/translation_progress_panel.dart';
 import 'custom_file_translation_controller.dart';
 
 /// カスタムファイルタブ画面(feature-spec.md §9)。
@@ -163,6 +164,14 @@ class CustomFileTranslationTabViewState
               ),
             ],
           ),
+          if (controller.state == CustomFileTabState.translating) ...[
+            const SizedBox(height: 12),
+            TranslationProgressPanel(
+              overallProgress: controller.overallProgress,
+              singleFileProgress: controller.singleFileProgress,
+              currentItemName: controller.currentItemName,
+            ),
+          ],
           if (controller.errorMessage != null) ...[
             const SizedBox(height: 8),
             Text(

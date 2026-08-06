@@ -90,6 +90,7 @@ Future<PatchouliTranslationResult> translatePatchouliBooks({
   SingleFileProgressCallback? onSingleFileProgress,
   OverallProgressCallback? onOverallProgress,
   ItemChunkResultCallback? onChunkResult,
+  CurrentItemCallback? onItemStarted,
 }) async {
   final orderedEntries = sortPatchouliBookEntries(selectedEntries);
 
@@ -112,6 +113,7 @@ Future<PatchouliTranslationResult> translatePatchouliBooks({
     if (cancellationToken?.isCancelled ?? false) {
       break;
     }
+    onItemStarted?.call(entry.bookKey);
 
     if (entry.sourceEntries.isEmpty) {
       skippedBookKeys.add(entry.bookKey);

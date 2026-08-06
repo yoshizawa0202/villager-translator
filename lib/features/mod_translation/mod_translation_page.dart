@@ -7,6 +7,7 @@ import '../../infrastructure/modtranslation/mod_translation_orchestrator.dart';
 import '../settings/settings_controller.dart';
 import '../shell/widgets/log_viewer_dialog.dart';
 import '../shell/widgets/translation_completion_dialog.dart';
+import '../shell/widgets/translation_progress_panel.dart';
 import 'mod_translation_controller.dart';
 
 /// MOD タブ画面(feature-spec.md §3.1〜3.2、§6)。
@@ -164,6 +165,14 @@ class ModTranslationTabViewState extends State<ModTranslationTabView> {
               ),
             ],
           ),
+          if (controller.state == ModTabState.translating) ...[
+            const SizedBox(height: 12),
+            TranslationProgressPanel(
+              overallProgress: controller.overallProgress,
+              singleFileProgress: controller.singleFileProgress,
+              currentItemName: controller.currentItemName,
+            ),
+          ],
           if (controller.errorMessage != null) ...[
             const SizedBox(height: 8),
             Text(

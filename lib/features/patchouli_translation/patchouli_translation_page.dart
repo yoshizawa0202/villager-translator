@@ -6,6 +6,7 @@ import '../../infrastructure/patchoulitranslation/patchouli_translation_orchestr
 import '../settings/settings_controller.dart';
 import '../shell/widgets/log_viewer_dialog.dart';
 import '../shell/widgets/translation_completion_dialog.dart';
+import '../shell/widgets/translation_progress_panel.dart';
 import 'patchouli_translation_controller.dart';
 
 /// Patchouli ガイドブック翻訳タブ画面(feature-spec.md §8)。
@@ -165,6 +166,14 @@ class PatchouliTranslationTabViewState
               ),
             ],
           ),
+          if (controller.state == PatchouliTabState.translating) ...[
+            const SizedBox(height: 12),
+            TranslationProgressPanel(
+              overallProgress: controller.overallProgress,
+              singleFileProgress: controller.singleFileProgress,
+              currentItemName: controller.currentItemName,
+            ),
+          ],
           if (controller.errorMessage != null) ...[
             const SizedBox(height: 8),
             Text(

@@ -79,6 +79,7 @@ Future<ModTranslationResult> translateSelectedMods({
   SingleFileProgressCallback? onSingleFileProgress,
   OverallProgressCallback? onOverallProgress,
   ItemChunkResultCallback? onChunkResult,
+  CurrentItemCallback? onItemStarted,
 }) async {
   final orderedEntries = sortModEntriesById(selectedEntries);
 
@@ -91,6 +92,7 @@ Future<ModTranslationResult> translateSelectedMods({
     if (cancellationToken?.isCancelled ?? false) {
       break;
     }
+    onItemStarted?.call(entry.modInfo.name);
 
     final existing = await loadExistingTargetEntries(entry);
 
