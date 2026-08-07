@@ -237,7 +237,10 @@ class PatchouliTranslationController extends ChangeNotifier {
     final sessionId = _sessionIdGenerator();
     final token = CancellationToken();
     _cancellationToken = token;
-    _overallProgress = null;
+    _overallProgress = OverallProgress(
+      completedItems: 0,
+      totalItems: selected.length,
+    );
     _singleFileProgress = null;
     _currentItemName = null;
 
