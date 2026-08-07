@@ -220,6 +220,23 @@ void main() {
       expect(results, ['amod']);
     });
 
+    test('onItemStarted が処理着手ごとに MOD 名を通知する(Issue#7)', () async {
+      final entryA = _entry('amod', {'a': '1'});
+      final entryB = _entry('bmod', {'a': '1'});
+      final started = <String>[];
+
+      await translateSelectedMods(
+        selectedEntries: [entryA, entryB],
+        policy: ExistingTranslationPolicy.retranslateAll,
+        loadExistingTargetEntries: (_) async => null,
+        chunkEntries: _singleChunk,
+        translateChunk: _fakeTranslate,
+        onItemStarted: started.add,
+      );
+
+      expect(started, ['amod', 'bmod']);
+    });
+
     test('onChunkResult がチャンクの失敗を MOD 名付きで通知する(Issue#10)', () async {
       final entry = _entry('failmod', {'a': '1'});
       final received = <ChunkResult>[];

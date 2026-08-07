@@ -95,6 +95,7 @@ class ModTranslationOrchestrator {
     SingleFileProgressCallback? onSingleFileProgress,
     OverallProgressCallback? onOverallProgress,
     ItemChunkResultCallback? onChunkResult,
+    CurrentItemCallback? onItemStarted,
   }) async {
     final adapter = _adapterFactory.create(
       settings.llm.provider,
@@ -145,6 +146,7 @@ class ModTranslationOrchestrator {
       onSingleFileProgress: onSingleFileProgress,
       onOverallProgress: onOverallProgress,
       onChunkResult: onChunkResult,
+      onItemStarted: onItemStarted,
     );
 
     final summary = _buildSummary(

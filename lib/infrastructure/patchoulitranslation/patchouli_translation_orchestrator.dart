@@ -80,6 +80,7 @@ class PatchouliTranslationOrchestrator {
     SingleFileProgressCallback? onSingleFileProgress,
     OverallProgressCallback? onOverallProgress,
     ItemChunkResultCallback? onChunkResult,
+    CurrentItemCallback? onItemStarted,
   }) async {
     final adapter = _adapterFactory.create(
       settings.llm.provider,
@@ -118,6 +119,7 @@ class PatchouliTranslationOrchestrator {
       onSingleFileProgress: onSingleFileProgress,
       onOverallProgress: onOverallProgress,
       onChunkResult: onChunkResult,
+      onItemStarted: onItemStarted,
     );
 
     // JAR ごとに新規エントリをまとめる(同一 JAR に複数の本が含まれる場合に、

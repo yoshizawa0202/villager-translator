@@ -1,12 +1,16 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
 import 'package:provider/provider.dart';
+import 'package:villager_translator/domain/common/cancellation_token.dart';
+import 'package:villager_translator/domain/common/translation_progress.dart';
 import 'package:villager_translator/domain/llm/llm_adapter.dart';
 import 'package:villager_translator/domain/llm/llm_adapter_config.dart';
 import 'package:villager_translator/domain/llm/llm_provider.dart';
+import 'package:villager_translator/domain/settings/app_settings.dart';
 import 'package:villager_translator/features/mod_translation/mod_translation_controller.dart';
 import 'package:villager_translator/features/mod_translation/mod_translation_page.dart';
 import 'package:villager_translator/features/settings/settings_controller.dart';
@@ -22,6 +26,43 @@ class _FakeAdapterFactory implements LlmAdapterFactory {
   @override
   LlmAdapter create(LlmProvider provider, LlmAdapterConfig config) =>
       const MockLlmAdapter();
+}
+
+/// `translateAndPack()` を呼び出した瞬間に進捗コールバックだけ発火させたうえで
+/// 停止させるフェイクオーケストレーター(進捗パネル表示(Issue #7)を安定して
+/// 再現するため、`main_shell_page_test.dart` の `_HangingModOrchestrator` と
+/// 同様の方針)。
+class _ProgressHangingOrchestrator extends ModTranslationOrchestrator {
+  _ProgressHangingOrchestrator({required this.adapterFactory})
+    : super(adapterFactory: adapterFactory);
+
+  final LlmAdapterFactory adapterFactory;
+  final Completer<ModTranslateAndPackResult> _completer = Completer();
+
+  @override
+  Future<ModTranslateAndPackResult> translateAndPack({
+    required Directory profileDirectory,
+    required List<ModScanEntry> selectedEntries,
+    required String targetLanguageId,
+    required String targetLanguageDisplayName,
+    required AppSettings settings,
+    required String apiKey,
+    required String sessionId,
+    CancellationToken? cancellationToken,
+    SingleFileProgressCallback? onSingleFileProgress,
+    OverallProgressCallback? onOverallProgress,
+    ItemChunkResultCallback? onChunkResult,
+    CurrentItemCallback? onItemStarted,
+  }) {
+    onItemStarted?.call('Mod A');
+    onOverallProgress?.call(
+      const OverallProgress(completedItems: 0, totalItems: 2),
+    );
+    onSingleFileProgress?.call(
+      const ChunkProgress(completedChunks: 1, totalChunks: 3),
+    );
+    return _completer.future;
+  }
 }
 
 void main() {
@@ -137,6 +178,123 @@ void main() {
     expect(find.text('完了'), findsOneWidget);
     expect(find.byKey(const Key('translationResultSummary')), findsOneWidget);
     expect(controller.lastResult!.translationResult.translatedModIds, ['moda']);
+    // 完了後は進捗パネルを表示しない(feature-spec.md §10、Issue #7)。
+    expect(find.byKey(const Key('translationProgressPanel')), findsNothing);
+  });
+
+  /// 進捗コールバックだけ発火させたうえで停止する _ProgressHangingOrchestrator を
+  /// 使って、「翻訳中」の状態のままページを止めた状態を作る(進捗パネル・
+  /// キャンセルボタンの表示検証(Issue #7)を安定して再現するため)。
+  Future<ModTranslationController> pumpTranslatingPage(
+    WidgetTester tester,
+  ) async {
+    final settingsController = SettingsController(
+      repository: InMemorySettingsRepository(),
+      apiKeyStore: InMemoryApiKeyStore(),
+    );
+    await settingsController.load();
+    await settingsController.setApiKey(LlmProvider.openai, 'test-key');
+
+    final modController = ModTranslationController(
+      settingsController: settingsController,
+      orchestrator: _ProgressHangingOrchestrator(
+        adapterFactory: _FakeAdapterFactory(),
+      ),
+    );
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<SettingsController>.value(
+            value: settingsController,
+          ),
+        ],
+        child: MaterialApp(home: ModTranslationPage(controller: modController)),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byKey(const Key('profileDirectoryField')),
+      tempDir.path,
+    );
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pumpAndSettle();
+
+    await tester.runAsync(() => modController.scan());
+    await tester.pumpAndSettle();
+
+    // translate() を await せずに呼び出す。セッションログ開始が実ファイル
+    // I/O(dart:io)を伴うため runAsync 内で実イベントループを進めたうえで、
+    // _ProgressHangingOrchestrator が進捗コールバックを発火させて停止する
+    // (main_shell_page_test.dart の _HangingModOrchestrator と同様の方針)。
+    await tester.runAsync(() async {
+      unawaited(modController.translate());
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    });
+    await tester.pump();
+
+    return modController;
+  }
+
+  testWidgets('翻訳中はプログレスバーと現在処理中の対象名が表示される(受け入れ条件4a,4b、Issue #7)', (
+    tester,
+  ) async {
+    final modController = await pumpTranslatingPage(tester);
+
+    expect(find.byKey(const Key('translationProgressPanel')), findsOneWidget);
+    expect(find.text('翻訳中: Mod A'), findsOneWidget);
+    expect(find.byKey(const Key('overallProgressBar')), findsOneWidget);
+    expect(find.text('0 / 2 件完了 (0%)'), findsOneWidget);
+    expect(find.byKey(const Key('singleFileProgressBar')), findsOneWidget);
+    expect(find.byKey(const Key('cancelTranslationButton')), findsOneWidget);
+
+    // オーケストレーターを永久に停止させたままにすると、開いたままの
+    // セッションログファイルハンドルが tempDir の削除(tearDown)を
+    // Windows 上でブロックするため、明示的にセッションを終了させる。
+    await tester.runAsync(() => modController.sessionLogger.endSession());
+  });
+
+  testWidgets('キャンセルボタン押下→確認ダイアログで「キャンセルする」を選ぶとキャンセルされる(受け入れ条件5a、Issue #7)', (
+    tester,
+  ) async {
+    final modController = await pumpTranslatingPage(tester);
+
+    await tester.tap(find.byKey(const Key('cancelTranslationButton')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('cancelConfirmationDialog')),
+      findsOneWidget,
+      reason: '確認ダイアログを経由せずに即座にキャンセルしてはいけない',
+    );
+
+    await tester.tap(find.byKey(const Key('cancelConfirmationDialogConfirm')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('cancelConfirmationDialog')), findsNothing);
+    expect(modController.isCancelling, isTrue);
+    expect(find.text('キャンセル中...'), findsOneWidget);
+
+    await tester.runAsync(() => modController.sessionLogger.endSession());
+  });
+
+  testWidgets('キャンセルボタン押下→確認ダイアログで「戻る」を選ぶと翻訳が継続される(受け入れ条件5a、Issue #7)', (
+    tester,
+  ) async {
+    final modController = await pumpTranslatingPage(tester);
+
+    await tester.tap(find.byKey(const Key('cancelTranslationButton')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('cancelConfirmationDialogDismiss')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('cancelConfirmationDialog')), findsNothing);
+    expect(modController.isCancelling, isFalse);
+    expect(find.text('キャンセル'), findsOneWidget);
+
+    await tester.runAsync(() => modController.sessionLogger.endSession());
   });
 
   testWidgets('同一 MOD ID を持つ JAR が複数あってもテーブルが例外なく描画される', (tester) async {

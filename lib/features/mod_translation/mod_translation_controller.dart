@@ -63,6 +63,10 @@ class ModTranslationController extends ChangeNotifier {
   ChunkProgress? _singleFileProgress;
   ChunkProgress? get singleFileProgress => _singleFileProgress;
 
+  /// 現在翻訳処理中の対象の表示名(MOD 名、feature-spec.md §10、Issue #7)。
+  String? _currentItemName;
+  String? get currentItemName => _currentItemName;
+
   ModTabState _state = ModTabState.notSelected;
   ModTabState get state => _state;
 
@@ -235,6 +239,7 @@ class ModTranslationController extends ChangeNotifier {
     _cancellationToken = token;
     _overallProgress = null;
     _singleFileProgress = null;
+    _currentItemName = null;
 
     _state = ModTabState.translating;
     _errorMessage = null;
@@ -270,6 +275,10 @@ class ModTranslationController extends ChangeNotifier {
           _sessionLogger.log(LogLevel.info, 'translate', progress.label);
           notifyListeners();
         },
+        onItemStarted: (itemName) {
+          _currentItemName = itemName;
+          notifyListeners();
+        },
         onChunkResult: (itemLabel, chunkResult) {
           _sessionLogger.log(
             chunkResult.success
@@ -287,6 +296,7 @@ class ModTranslationController extends ChangeNotifier {
         },
       );
       _lastResult = result;
+      _currentItemName = null;
       _state = ModTabState.completed;
       _sessionLogger.logSummaryItems(result.summary);
       _sessionLogger.log(
@@ -305,6 +315,7 @@ class ModTranslationController extends ChangeNotifier {
     } catch (e) {
       _errorMessage = '翻訳に失敗しました: $e';
       _state = ModTabState.scanned;
+      _currentItemName = null;
       _sessionLogger.log(
         LogLevel.error,
         'translate',
@@ -318,9 +329,13 @@ class ModTranslationController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// キャンセル要求済みかどうか(協調的キャンセルの完了待ち中、Issue #7)。
+  bool get isCancelling => _cancellationToken?.isCancelled ?? false;
+
   /// 実行中の翻訳をキャンセルする(協調的キャンセル、feature-spec.md §10)。
   void cancel() {
     _cancellationToken?.cancel();
+    notifyListeners();
   }
 
   @override

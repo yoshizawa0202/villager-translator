@@ -63,6 +63,10 @@ class QuestTranslationController extends ChangeNotifier {
   ChunkProgress? _singleFileProgress;
   ChunkProgress? get singleFileProgress => _singleFileProgress;
 
+  /// 現在翻訳処理中の対象の表示名(ファイル相対パス、feature-spec.md §10、Issue #7)。
+  String? _currentItemName;
+  String? get currentItemName => _currentItemName;
+
   QuestTabState _state = QuestTabState.notSelected;
   QuestTabState get state => _state;
 
@@ -224,6 +228,7 @@ class QuestTranslationController extends ChangeNotifier {
     _cancellationToken = token;
     _overallProgress = null;
     _singleFileProgress = null;
+    _currentItemName = null;
 
     _state = QuestTabState.translating;
     _errorMessage = null;
@@ -259,6 +264,10 @@ class QuestTranslationController extends ChangeNotifier {
           _sessionLogger.log(LogLevel.info, 'translate', progress.label);
           notifyListeners();
         },
+        onItemStarted: (itemName) {
+          _currentItemName = itemName;
+          notifyListeners();
+        },
         onChunkResult: (itemLabel, chunkResult) {
           _sessionLogger.log(
             chunkResult.success
@@ -276,6 +285,7 @@ class QuestTranslationController extends ChangeNotifier {
         },
       );
       _lastResult = result;
+      _currentItemName = null;
       _state = QuestTabState.completed;
       _sessionLogger.logSummaryItems(result.summary);
       _sessionLogger.log(
@@ -294,6 +304,7 @@ class QuestTranslationController extends ChangeNotifier {
     } catch (e) {
       _errorMessage = '翻訳に失敗しました: $e';
       _state = QuestTabState.scanned;
+      _currentItemName = null;
       _sessionLogger.log(
         LogLevel.error,
         'translate',
@@ -307,9 +318,13 @@ class QuestTranslationController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// キャンセル要求済みかどうか(協調的キャンセルの完了待ち中、Issue #7)。
+  bool get isCancelling => _cancellationToken?.isCancelled ?? false;
+
   /// 実行中の翻訳をキャンセルする(協調的キャンセル、feature-spec.md §10)。
   void cancel() {
     _cancellationToken?.cancel();
+    notifyListeners();
   }
 
   @override

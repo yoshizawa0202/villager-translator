@@ -249,5 +249,22 @@ void main() {
 
       expect(labels, ['amod:guide']);
     });
+
+    test('onItemStarted が処理着手ごとに本のキー(modId:bookId)を通知する(Issue#7)', () async {
+      final entryA = _entry('amod', 'guide', {'book.json#0': '1'});
+      final entryB = _entry('bmod', 'guide', {'book.json#0': '1'});
+      final started = <String>[];
+
+      await translatePatchouliBooks(
+        selectedEntries: [entryA, entryB],
+        policy: ExistingTranslationPolicy.retranslateAll,
+        loadExistingTargetEntries: (_) async =>
+            const PatchouliExistingTranslation(isComplete: false, entries: {}),
+        translateChunk: _fakeTranslate,
+        onItemStarted: started.add,
+      );
+
+      expect(started, ['amod:guide', 'bmod:guide']);
+    });
   });
 }

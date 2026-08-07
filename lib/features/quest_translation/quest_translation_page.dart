@@ -4,8 +4,10 @@ import 'package:provider/provider.dart';
 
 import '../../infrastructure/questtranslation/quest_translation_orchestrator.dart';
 import '../settings/settings_controller.dart';
+import '../shell/widgets/cancel_confirmation_dialog.dart';
 import '../shell/widgets/log_viewer_dialog.dart';
 import '../shell/widgets/translation_completion_dialog.dart';
+import '../shell/widgets/translation_progress_panel.dart';
 import 'quest_translation_controller.dart';
 
 /// クエストタブ画面(feature-spec.md §7)。
@@ -162,6 +164,19 @@ class QuestTranslationTabViewState extends State<QuestTranslationTabView> {
               ),
             ],
           ),
+          if (controller.state == QuestTabState.translating) ...[
+            const SizedBox(height: 12),
+            TranslationProgressPanel(
+              overallProgress: controller.overallProgress,
+              singleFileProgress: controller.singleFileProgress,
+              currentItemName: controller.currentItemName,
+              isCancelling: controller.isCancelling,
+              onCancel: () async {
+                final confirmed = await CancelConfirmationDialog.show(context);
+                if (confirmed) controller.cancel();
+              },
+            ),
+          ],
           if (controller.errorMessage != null) ...[
             const SizedBox(height: 8),
             Text(

@@ -185,6 +185,23 @@ void main() {
       ]);
     });
 
+    test('onItemStarted が処理着手ごとにファイルの相対パスを通知する(Issue#7)', () async {
+      final entryA = _jsonEntry('a.json', {'a': '1'});
+      final entryB = _jsonEntry('b.json', {'a': '1'});
+      final started = <String>[];
+
+      await translateQuestEntries(
+        selectedEntries: [entryA, entryB],
+        policy: ExistingTranslationPolicy.retranslateAll,
+        loadExistingTargetEntries: (_) async => null,
+        translateChunk: (chunk) async =>
+            chunk.map((k, v) => MapEntry(k, '[訳]$v')),
+        onItemStarted: started.add,
+      );
+
+      expect(started, ['a.json', 'b.json']);
+    });
+
     test('onChunkResult がファイルの相対パス付きで結果を通知する(Issue#10)', () async {
       final entry = _jsonEntry('a.json', {'a': '1'});
       final labels = <String>[];
