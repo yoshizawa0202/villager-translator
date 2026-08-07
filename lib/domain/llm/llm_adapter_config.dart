@@ -1,3 +1,5 @@
+import 'thinking_level.dart';
+
 /// LLM アダプターの生成に必要な設定値。
 ///
 /// API キーはこのオブジェクトを通じて呼び出し時にのみ渡され、
@@ -8,6 +10,7 @@ class LlmAdapterConfig {
     required this.model,
     required this.temperature,
     required this.maxRetries,
+    this.thinkingLevel = ThinkingLevel.off,
   });
 
   final String apiKey;
@@ -17,4 +20,8 @@ class LlmAdapterConfig {
   /// `docs/specs/003-translation-engine.md` のリトライループが参照する値。
   /// 本仕様(002)のアダプター骨組み自体はリトライを行わない。
   final int maxRetries;
+
+  /// 思考量(`docs/specs/009-thinking-level-setting.md`)。
+  /// `off` の場合、各アダプターは思考量関連のパラメータを一切送信しない。
+  final ThinkingLevel thinkingLevel;
 }

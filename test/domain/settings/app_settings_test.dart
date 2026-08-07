@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:villager_translator/domain/llm/llm_provider.dart';
+import 'package:villager_translator/domain/llm/thinking_level.dart';
 import 'package:villager_translator/domain/settings/app_settings.dart';
 import 'package:villager_translator/domain/settings/existing_translation_policy.dart';
 import 'package:villager_translator/domain/settings/supported_language.dart';
@@ -12,6 +13,7 @@ void main() {
       expect(settings.llm.provider, LlmProvider.openai);
       expect(settings.llm.maxRetries, 3);
       expect(settings.llm.temperature, 1.0);
+      expect(settings.llm.thinkingLevel, ThinkingLevel.off);
       expect(
         settings.translation.existingTranslationPolicy,
         ExistingTranslationPolicy.diffUpdate,
@@ -28,6 +30,9 @@ void main() {
 
     test('toJson/fromJson の往復で内容が保持される', () {
       final original = AppSettings.defaults().copyWith(
+        llm: AppSettings.defaults().llm.copyWith(
+          thinkingLevel: ThinkingLevel.high,
+        ),
         translation: AppSettings.defaults().translation.copyWith(
           customLanguages: const [
             SupportedLanguage(
@@ -43,6 +48,7 @@ void main() {
 
       expect(restored.llm.provider, original.llm.provider);
       expect(restored.llm.model, original.llm.model);
+      expect(restored.llm.thinkingLevel, ThinkingLevel.high);
       expect(
         restored.translation.resourcePackName,
         original.translation.resourcePackName,
@@ -51,6 +57,14 @@ void main() {
         restored.translation.customLanguages,
         original.translation.customLanguages,
       );
+    });
+
+    test('未知の thinkingLevel 値は off にフォールバックする', () {
+      final json = AppSettings.defaults().toJson();
+      (json['llm'] as Map<String, dynamic>)['thinkingLevel'] = 'unknown';
+
+      final restored = AppSettings.fromJson(json);
+      expect(restored.llm.thinkingLevel, ThinkingLevel.off);
     });
 
     test('toJson は API キーを含まない構造である(LlmSettings に apiKey フィールドが存在しない)', () {

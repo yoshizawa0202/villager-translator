@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import '../../domain/llm/llm_adapter_config.dart';
 import '../../domain/llm/llm_provider.dart';
 import '../../domain/llm/model_catalog.dart';
+import '../../domain/llm/thinking_level.dart';
 import '../../domain/settings/app_settings.dart';
 import '../../domain/settings/llm_settings.dart';
 import '../../domain/settings/settings_validator.dart';
@@ -101,14 +102,23 @@ class SettingsController extends ChangeNotifier {
   }
 
   /// プロバイダーを切り替える。モデルはそのプロバイダーの既定モデルへリセットする。
+  /// 選択中の思考量が新しい既定モデルで対応していない場合は `off` へリセットする
+  /// (対応していれば維持する。`docs/specs/009-thinking-level-setting.md`)。
   Future<String?> setProvider(LlmProvider provider) {
-    return updateLlm(
-      (llm) => llm.copyWith(
+    final defaultModel = kDefaultModel[provider]!;
+    final info = modelInfoFor(provider, defaultModel);
+    return updateLlm((llm) {
+      final supportsCurrentLevel =
+          info?.supportedThinkingLevels.contains(llm.thinkingLevel) ?? false;
+      return llm.copyWith(
         provider: provider,
-        model: kDefaultModel[provider]!,
+        model: defaultModel,
         customModel: '',
-      ),
-    );
+        thinkingLevel: supportsCurrentLevel
+            ? llm.thinkingLevel
+            : ThinkingLevel.off,
+      );
+    });
   }
 
   /// LLM 設定のドラフトを更新する。検証に失敗した場合はエラーメッセージを返し、
@@ -254,6 +264,7 @@ class SettingsController extends ChangeNotifier {
         model: _settings.llm.effectiveModel,
         temperature: _settings.llm.temperature,
         maxRetries: _settings.llm.maxRetries,
+        thinkingLevel: _settings.llm.thinkingLevel,
       ),
     );
     return adapter.validateApiKey(candidateApiKey);
@@ -262,7 +273,12 @@ class SettingsController extends ChangeNotifier {
   String? _validateLlm(LlmSettings s) {
     return SettingsValidator.validateTemperature(s.temperature) ??
         SettingsValidator.validateMaxRetries(s.maxRetries) ??
-        SettingsValidator.validateCustomModel(s.model, s.customModel);
+        SettingsValidator.validateCustomModel(s.model, s.customModel) ??
+        SettingsValidator.validateThinkingLevel(
+          s.provider,
+          s.model,
+          s.thinkingLevel,
+        );
   }
 
   String? _validateTranslation(TranslationSettings s) {

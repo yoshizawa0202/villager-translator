@@ -1,6 +1,7 @@
 import '../llm/default_prompts.dart';
 import '../llm/llm_provider.dart';
 import '../llm/model_catalog.dart';
+import '../llm/thinking_level.dart';
 
 /// LLM プロバイダー・モデル・プロンプトに関する設定(feature-spec.md §4.1)。
 ///
@@ -15,6 +16,7 @@ class LlmSettings {
     required this.temperature,
     required this.systemPrompt,
     required this.userPrompt,
+    required this.thinkingLevel,
   });
 
   final LlmProvider provider;
@@ -30,6 +32,9 @@ class LlmSettings {
   final String systemPrompt;
   final String userPrompt;
 
+  /// 思考量(`docs/specs/009-thinking-level-setting.md`)。
+  final ThinkingLevel thinkingLevel;
+
   /// 実際に API 呼び出しへ渡すモデル名。
   String get effectiveModel =>
       model == kCustomModelSentinel ? customModel : model;
@@ -44,6 +49,7 @@ class LlmSettings {
       temperature: 1.0,
       systemPrompt: kDefaultSystemPrompt,
       userPrompt: kDefaultUserPrompt,
+      thinkingLevel: ThinkingLevel.off,
     );
   }
 
@@ -55,6 +61,7 @@ class LlmSettings {
     double? temperature,
     String? systemPrompt,
     String? userPrompt,
+    ThinkingLevel? thinkingLevel,
   }) {
     return LlmSettings(
       provider: provider ?? this.provider,
@@ -64,6 +71,7 @@ class LlmSettings {
       temperature: temperature ?? this.temperature,
       systemPrompt: systemPrompt ?? this.systemPrompt,
       userPrompt: userPrompt ?? this.userPrompt,
+      thinkingLevel: thinkingLevel ?? this.thinkingLevel,
     );
   }
 
@@ -75,6 +83,7 @@ class LlmSettings {
     'temperature': temperature,
     'systemPrompt': systemPrompt,
     'userPrompt': userPrompt,
+    'thinkingLevel': thinkingLevel.id,
   };
 
   /// JSON から復元する。欠損・不正な値はフィールド単位で既定値にフォールバックし、
@@ -89,6 +98,15 @@ class LlmSettings {
       resolvedProvider = fallback.provider;
     }
 
+    ThinkingLevel resolvedThinkingLevel;
+    try {
+      resolvedThinkingLevel = ThinkingLevel.fromId(
+        json['thinkingLevel'] as String? ?? '',
+      );
+    } catch (_) {
+      resolvedThinkingLevel = fallback.thinkingLevel;
+    }
+
     return LlmSettings(
       provider: resolvedProvider,
       model: json['model'] as String? ?? kDefaultModel[resolvedProvider]!,
@@ -98,6 +116,7 @@ class LlmSettings {
           (json['temperature'] as num?)?.toDouble() ?? fallback.temperature,
       systemPrompt: json['systemPrompt'] as String? ?? fallback.systemPrompt,
       userPrompt: json['userPrompt'] as String? ?? fallback.userPrompt,
+      thinkingLevel: resolvedThinkingLevel,
     );
   }
 }

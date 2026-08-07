@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:villager_translator/domain/llm/llm_provider.dart';
+import 'package:villager_translator/domain/llm/thinking_level.dart';
 import 'package:villager_translator/features/settings/settings_controller.dart';
 import 'package:villager_translator/features/settings/settings_page.dart';
 
@@ -62,6 +63,62 @@ void main() {
     await tester.pump();
 
     expect(find.text('カスタムモデル名を入力してください'), findsOneWidget);
+  });
+
+  testWidgets('思考量を選択でき、ドラフトへ反映される (docs/specs/009 AC1)', (tester) async {
+    final controller = await pumpSettingsPage(tester);
+
+    await tester.ensureVisible(find.byKey(const Key('thinkingLevelSelector')));
+    await tester.tap(find.byKey(const Key('thinkingLevelSelector')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('高').last);
+    await tester.pumpAndSettle();
+
+    expect(controller.settings.llm.thinkingLevel, ThinkingLevel.high);
+  });
+
+  testWidgets('思考量に対応していないモデルでは選択肢が無効化され、注記が表示される (docs/specs/009 AC2)', (
+    tester,
+  ) async {
+    await pumpSettingsPage(tester);
+
+    expect(
+      find.byKey(const Key('thinkingLevelUnsupportedNotice')),
+      findsNothing,
+    );
+
+    await tester.ensureVisible(find.byKey(const Key('modelSelector')));
+    await tester.tap(find.byKey(const Key('modelSelector')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('gpt-5.4-nano').last);
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('thinkingLevelUnsupportedNotice')),
+      findsOneWidget,
+    );
+    final dropdown = tester.widget<DropdownButtonFormField<ThinkingLevel>>(
+      find.byKey(const Key('thinkingLevelSelector')),
+    );
+    expect(dropdown.onChanged, isNull);
+  });
+
+  testWidgets('思考量非対応モデルへ切り替えると、選択済みの思考量が off へリセットされる (docs/specs/009 AC4)', (
+    tester,
+  ) async {
+    final controller = await pumpSettingsPage(tester);
+    await controller.updateLlm(
+      (s) => s.copyWith(thinkingLevel: ThinkingLevel.high),
+    );
+    await tester.pump();
+
+    await tester.ensureVisible(find.byKey(const Key('modelSelector')));
+    await tester.tap(find.byKey(const Key('modelSelector')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('gpt-5.4-nano').last);
+    await tester.pumpAndSettle();
+
+    expect(controller.settings.llm.thinkingLevel, ThinkingLevel.off);
   });
 
   testWidgets('API キー入力欄の表示/非表示切替アイコンでマスク状態が反転する (AC4)', (tester) async {

@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:villager_translator/domain/llm/llm_adapter_config.dart';
 import 'package:villager_translator/domain/llm/llm_provider.dart';
+import 'package:villager_translator/domain/llm/thinking_level.dart';
 import 'package:villager_translator/infrastructure/llm/anthropic_adapter.dart';
 
 void main() {
@@ -71,5 +72,56 @@ void main() {
     final adapter = AnthropicAdapter(config, client: client);
     expect(await adapter.validateApiKey('candidate-key'), isTrue);
     expect(callCount, 1);
+  });
+
+  test('thinkingLevel が off の場合 thinking フィールドを送信しない', () async {
+    Map<String, dynamic>? capturedBody;
+    final client = MockClient((request) async {
+      capturedBody = jsonDecode(request.body) as Map<String, dynamic>;
+      return http.Response(
+        jsonEncode({
+          'content': [
+            {'type': 'text', 'text': 'greeting: こんにちは'},
+          ],
+        }),
+        200,
+      );
+    });
+
+    final adapter = AnthropicAdapter(config, client: client);
+    await adapter.translate(content: {'greeting': 'Hello'}, targetLanguage: 'ja');
+
+    expect(capturedBody!.containsKey('thinking'), isFalse);
+  });
+
+  test('thinkingLevel が high の場合 thinking.budget_tokens を max_tokens 未満で送信する', () async {
+    Map<String, dynamic>? capturedBody;
+    final client = MockClient((request) async {
+      capturedBody = jsonDecode(request.body) as Map<String, dynamic>;
+      return http.Response(
+        jsonEncode({
+          'content': [
+            {'type': 'text', 'text': 'greeting: こんにちは'},
+          ],
+        }),
+        200,
+      );
+    });
+
+    final adapter = AnthropicAdapter(
+      const LlmAdapterConfig(
+        apiKey: 'test-key',
+        model: 'claude-3-5-haiku-20241022',
+        temperature: 0.5,
+        maxRetries: 3,
+        thinkingLevel: ThinkingLevel.high,
+      ),
+      client: client,
+    );
+    await adapter.translate(content: {'greeting': 'Hello'}, targetLanguage: 'ja');
+
+    final thinking = capturedBody!['thinking'] as Map<String, dynamic>;
+    expect(thinking['type'], 'enabled');
+    expect(thinking['budget_tokens'], lessThan(AnthropicAdapter.maxOutputTokens));
   });
 }

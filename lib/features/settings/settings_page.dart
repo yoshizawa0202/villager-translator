@@ -8,6 +8,7 @@ import 'widgets/llm_advanced_settings_section.dart';
 import 'widgets/model_selector.dart';
 import 'widgets/prompt_editor_section.dart';
 import 'widgets/provider_selector.dart';
+import 'widgets/thinking_level_selector.dart';
 import 'widgets/translation_settings_section.dart';
 
 /// 設定画面(feature-spec.md §4)。
@@ -74,6 +75,8 @@ class SettingsPage extends StatelessWidget {
             const ApiKeyField(),
             const SizedBox(height: 12),
             const ModelSelector(),
+            const SizedBox(height: 12),
+            const ThinkingLevelSelector(),
             const SizedBox(height: 12),
             const LlmAdvancedSettingsSection(),
             const SizedBox(height: 24),
