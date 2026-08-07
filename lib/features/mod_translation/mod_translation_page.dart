@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../domain/translation/lang_codec.dart';
 import '../../infrastructure/modtranslation/mod_translation_orchestrator.dart';
 import '../settings/settings_controller.dart';
+import '../shell/widgets/cancel_confirmation_dialog.dart';
 import '../shell/widgets/log_viewer_dialog.dart';
 import '../shell/widgets/translation_completion_dialog.dart';
 import '../shell/widgets/translation_progress_panel.dart';
@@ -171,6 +172,11 @@ class ModTranslationTabViewState extends State<ModTranslationTabView> {
               overallProgress: controller.overallProgress,
               singleFileProgress: controller.singleFileProgress,
               currentItemName: controller.currentItemName,
+              isCancelling: controller.isCancelling,
+              onCancel: () async {
+                final confirmed = await CancelConfirmationDialog.show(context);
+                if (confirmed) controller.cancel();
+              },
             ),
           ],
           if (controller.errorMessage != null) ...[

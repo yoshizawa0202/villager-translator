@@ -329,9 +329,13 @@ class ModTranslationController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// キャンセル要求済みかどうか(協調的キャンセルの完了待ち中、Issue #7)。
+  bool get isCancelling => _cancellationToken?.isCancelled ?? false;
+
   /// 実行中の翻訳をキャンセルする(協調的キャンセル、feature-spec.md §10)。
   void cancel() {
     _cancellationToken?.cancel();
+    notifyListeners();
   }
 
   @override

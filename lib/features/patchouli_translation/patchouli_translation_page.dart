@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../../infrastructure/patchoulitranslation/patchouli_translation_orchestrator.dart';
 import '../settings/settings_controller.dart';
+import '../shell/widgets/cancel_confirmation_dialog.dart';
 import '../shell/widgets/log_viewer_dialog.dart';
 import '../shell/widgets/translation_completion_dialog.dart';
 import '../shell/widgets/translation_progress_panel.dart';
@@ -172,6 +173,11 @@ class PatchouliTranslationTabViewState
               overallProgress: controller.overallProgress,
               singleFileProgress: controller.singleFileProgress,
               currentItemName: controller.currentItemName,
+              isCancelling: controller.isCancelling,
+              onCancel: () async {
+                final confirmed = await CancelConfirmationDialog.show(context);
+                if (confirmed) controller.cancel();
+              },
             ),
           ],
           if (controller.errorMessage != null) ...[

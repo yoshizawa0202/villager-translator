@@ -8,6 +8,8 @@ Future<void> _pump(
   OverallProgress? overallProgress,
   ChunkProgress? singleFileProgress,
   String? currentItemName,
+  VoidCallback? onCancel,
+  bool isCancelling = false,
 }) {
   return tester.pumpWidget(
     MaterialApp(
@@ -16,6 +18,8 @@ Future<void> _pump(
           overallProgress: overallProgress,
           singleFileProgress: singleFileProgress,
           currentItemName: currentItemName,
+          onCancel: onCancel,
+          isCancelling: isCancelling,
         ),
       ),
     ),
@@ -102,6 +106,73 @@ void main() {
       );
 
       expect(find.byKey(const Key('singleFileProgressBar')), findsNothing);
+    });
+
+    testWidgets('onCancel が渡されていない場合、キャンセルボタンを表示しない', (tester) async {
+      await _pump(
+        tester,
+        overallProgress: const OverallProgress(
+          completedItems: 0,
+          totalItems: 1,
+        ),
+      );
+
+      expect(find.byKey(const Key('cancelTranslationButton')), findsNothing);
+    });
+
+    testWidgets(
+      'onCancel が渡されている場合、プログレスバー付近にキャンセルボタンを表示し、押下で呼び出される(Issue #7)',
+      (tester) async {
+        var cancelled = false;
+        await _pump(
+          tester,
+          overallProgress: const OverallProgress(
+            completedItems: 0,
+            totalItems: 1,
+          ),
+          onCancel: () => cancelled = true,
+        );
+
+        expect(
+          find.byKey(const Key('cancelTranslationButton')),
+          findsOneWidget,
+        );
+        expect(find.text('キャンセル'), findsOneWidget);
+
+        await tester.tap(find.byKey(const Key('cancelTranslationButton')));
+        await tester.pump();
+
+        expect(cancelled, isTrue);
+      },
+    );
+
+    testWidgets('isCancelling が true の場合、ボタンを無効化し「キャンセル中...」と表示する(Issue #7)', (
+      tester,
+    ) async {
+      var cancelled = false;
+      await _pump(
+        tester,
+        overallProgress: const OverallProgress(
+          completedItems: 0,
+          totalItems: 1,
+        ),
+        onCancel: () => cancelled = true,
+        isCancelling: true,
+      );
+
+      expect(find.text('キャンセル中...'), findsOneWidget);
+
+      final button = tester.widget<OutlinedButton>(
+        find.byKey(const Key('cancelTranslationButton')),
+      );
+      expect(button.onPressed, isNull);
+
+      await tester.tap(
+        find.byKey(const Key('cancelTranslationButton')),
+        warnIfMissed: false,
+      );
+      await tester.pump();
+      expect(cancelled, isFalse);
     });
   });
 }

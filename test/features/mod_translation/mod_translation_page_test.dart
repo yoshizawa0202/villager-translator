@@ -182,8 +182,11 @@ void main() {
     expect(find.byKey(const Key('translationProgressPanel')), findsNothing);
   });
 
-  testWidgets('翻訳中はプログレスバーと現在処理中の対象名が表示される(受け入れ条件4a,4b、Issue #7)', (
-    tester,
+  /// 進捗コールバックだけ発火させたうえで停止する _ProgressHangingOrchestrator を
+  /// 使って、「翻訳中」の状態のままページを止めた状態を作る(進捗パネル・
+  /// キャンセルボタンの表示検証(Issue #7)を安定して再現するため)。
+  Future<ModTranslationController> pumpTranslatingPage(
+    WidgetTester tester,
   ) async {
     final settingsController = SettingsController(
       repository: InMemorySettingsRepository(),
@@ -192,11 +195,10 @@ void main() {
     await settingsController.load();
     await settingsController.setApiKey(LlmProvider.openai, 'test-key');
 
-    final adapterFactory = _FakeAdapterFactory();
     final modController = ModTranslationController(
       settingsController: settingsController,
       orchestrator: _ProgressHangingOrchestrator(
-        adapterFactory: adapterFactory,
+        adapterFactory: _FakeAdapterFactory(),
       ),
     );
 
@@ -232,15 +234,66 @@ void main() {
     });
     await tester.pump();
 
+    return modController;
+  }
+
+  testWidgets('翻訳中はプログレスバーと現在処理中の対象名が表示される(受け入れ条件4a,4b、Issue #7)', (
+    tester,
+  ) async {
+    final modController = await pumpTranslatingPage(tester);
+
     expect(find.byKey(const Key('translationProgressPanel')), findsOneWidget);
     expect(find.text('翻訳中: Mod A'), findsOneWidget);
     expect(find.byKey(const Key('overallProgressBar')), findsOneWidget);
     expect(find.text('0 / 2 件完了 (0%)'), findsOneWidget);
     expect(find.byKey(const Key('singleFileProgressBar')), findsOneWidget);
+    expect(find.byKey(const Key('cancelTranslationButton')), findsOneWidget);
 
     // オーケストレーターを永久に停止させたままにすると、開いたままの
     // セッションログファイルハンドルが tempDir の削除(tearDown)を
     // Windows 上でブロックするため、明示的にセッションを終了させる。
+    await tester.runAsync(() => modController.sessionLogger.endSession());
+  });
+
+  testWidgets('キャンセルボタン押下→確認ダイアログで「キャンセルする」を選ぶとキャンセルされる(受け入れ条件5a、Issue #7)', (
+    tester,
+  ) async {
+    final modController = await pumpTranslatingPage(tester);
+
+    await tester.tap(find.byKey(const Key('cancelTranslationButton')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('cancelConfirmationDialog')),
+      findsOneWidget,
+      reason: '確認ダイアログを経由せずに即座にキャンセルしてはいけない',
+    );
+
+    await tester.tap(find.byKey(const Key('cancelConfirmationDialogConfirm')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('cancelConfirmationDialog')), findsNothing);
+    expect(modController.isCancelling, isTrue);
+    expect(find.text('キャンセル中...'), findsOneWidget);
+
+    await tester.runAsync(() => modController.sessionLogger.endSession());
+  });
+
+  testWidgets('キャンセルボタン押下→確認ダイアログで「戻る」を選ぶと翻訳が継続される(受け入れ条件5a、Issue #7)', (
+    tester,
+  ) async {
+    final modController = await pumpTranslatingPage(tester);
+
+    await tester.tap(find.byKey(const Key('cancelTranslationButton')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('cancelConfirmationDialogDismiss')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('cancelConfirmationDialog')), findsNothing);
+    expect(modController.isCancelling, isFalse);
+    expect(find.text('キャンセル'), findsOneWidget);
+
     await tester.runAsync(() => modController.sessionLogger.endSession());
   });
 
