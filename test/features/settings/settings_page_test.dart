@@ -194,20 +194,18 @@ void main() {
   testWidgets('テキスト欄にフォーカスしただけで値を変更せずに外しても未保存扱いにならない', (tester) async {
     final controller = await pumpSettingsPage(tester);
 
-    final scrollable = find.ancestor(
-      of: find.byKey(const Key('apiKeyField')),
-      matching: find.byType(Scrollable),
+    // ドラッグ操作だと、ドラッグの起点がテキスト入力欄の上に重なりジェスチャーが
+    // スクロールではなくテキスト選択として消費されてしまうことがあるため、
+    // ScrollPosition を直接操作して目的のフィールドまでスクロールする。
+    final initialScrollableState = tester.state<ScrollableState>(
+      find.ancestor(
+        of: find.byKey(const Key('apiKeyField')),
+        matching: find.byType(Scrollable),
+      ),
     );
-    await tester.dragUntilVisible(
-      find.byKey(const Key('resourcePackNameField')),
-      scrollable,
-      const Offset(0, -200),
+    initialScrollableState.position.jumpTo(
+      initialScrollableState.position.maxScrollExtent,
     );
-    // dragUntilVisible はウィジェットが ListView のキャッシュ範囲に入った時点で
-    // 停止するため、ビューポート外(キャッシュのみ)に留まっている場合がある。
-    // tap() は実際の画面上の座標にヒットする必要があるため、
-    // ensureVisible で確実にビューポート内へスクロールしてからタップする。
-    await tester.ensureVisible(find.byKey(const Key('resourcePackNameField')));
     await tester.pumpAndSettle();
 
     await tester.tap(find.byKey(const Key('resourcePackNameField')));
@@ -219,17 +217,9 @@ void main() {
     expect(controller.hasUnsavedChanges, isFalse);
 
     // 保存ステータス表示は ListView 上部にあり、直前のスクロールで
-    // キャッシュ範囲外に出てビルドされていない可能性がある。ドラッグ操作で
-    // 戻そうとすると、ドラッグの起点がテキスト入力欄の上に重なりジェスチャーが
-    // スクロールではなくテキスト選択として消費されてしまうため、
+    // キャッシュ範囲外に出てビルドされていない可能性があるため、
     // ScrollPosition を直接操作してビューポート先頭へ戻す。
-    final scrollableState = tester.state<ScrollableState>(
-      find.ancestor(
-        of: find.byKey(const Key('resourcePackNameField')),
-        matching: find.byType(Scrollable),
-      ),
-    );
-    scrollableState.position.jumpTo(0);
+    initialScrollableState.position.jumpTo(0);
     await tester.pumpAndSettle();
 
     expect(find.text('変更後に「保存」ボタンを押すと反映されます'), findsOneWidget);
@@ -253,15 +243,14 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final scrollable = find.ancestor(
-      of: find.byKey(const Key('apiKeyField')),
-      matching: find.byType(Scrollable),
+    final scrollableState = tester.state<ScrollableState>(
+      find.ancestor(
+        of: find.byKey(const Key('apiKeyField')),
+        matching: find.byType(Scrollable),
+      ),
     );
-    await tester.dragUntilVisible(
-      find.byKey(const Key('resourcePackNameField')),
-      scrollable,
-      const Offset(0, -200),
-    );
+    scrollableState.position.jumpTo(scrollableState.position.maxScrollExtent);
+    await tester.pumpAndSettle();
     await tester.enterText(
       find.byKey(const Key('resourcePackNameField')),
       'CustomPackName',
