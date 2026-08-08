@@ -6,6 +6,7 @@ import 'package:http/testing.dart';
 import 'package:villager_translator/domain/llm/llm_adapter_config.dart';
 import 'package:villager_translator/domain/llm/llm_api_exception.dart';
 import 'package:villager_translator/domain/llm/llm_provider.dart';
+import 'package:villager_translator/domain/llm/thinking_level.dart';
 import 'package:villager_translator/infrastructure/llm/openai_adapter.dart';
 
 void main() {
@@ -116,5 +117,60 @@ void main() {
     final adapter = OpenAiAdapter(config, client: client);
 
     expect(await adapter.validateApiKey('bad-key'), isFalse);
+  });
+
+  test('thinkingLevel が off の場合 reasoning_effort を送信しない', () async {
+    Map<String, dynamic>? capturedBody;
+    final client = MockClient((request) async {
+      capturedBody = jsonDecode(request.body) as Map<String, dynamic>;
+      return http.Response(
+        jsonEncode({
+          'choices': [
+            {
+              'message': {'content': 'greeting: こんにちは'},
+            },
+          ],
+        }),
+        200,
+        headers: {'content-type': 'application/json; charset=utf-8'},
+      );
+    });
+
+    final adapter = OpenAiAdapter(config, client: client);
+    await adapter.translate(content: {'greeting': 'Hello'}, targetLanguage: 'ja');
+
+    expect(capturedBody!.containsKey('reasoning_effort'), isFalse);
+  });
+
+  test('thinkingLevel が high の場合 reasoning_effort: "high" を送信する', () async {
+    Map<String, dynamic>? capturedBody;
+    final client = MockClient((request) async {
+      capturedBody = jsonDecode(request.body) as Map<String, dynamic>;
+      return http.Response(
+        jsonEncode({
+          'choices': [
+            {
+              'message': {'content': 'greeting: こんにちは'},
+            },
+          ],
+        }),
+        200,
+        headers: {'content-type': 'application/json; charset=utf-8'},
+      );
+    });
+
+    final adapter = OpenAiAdapter(
+      const LlmAdapterConfig(
+        apiKey: 'test-key',
+        model: 'gpt-4o-mini',
+        temperature: 0.5,
+        maxRetries: 3,
+        thinkingLevel: ThinkingLevel.high,
+      ),
+      client: client,
+    );
+    await adapter.translate(content: {'greeting': 'Hello'}, targetLanguage: 'ja');
+
+    expect(capturedBody!['reasoning_effort'], 'high');
   });
 }

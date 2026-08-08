@@ -4,6 +4,7 @@ import '../../domain/llm/llm_adapter_config.dart';
 import '../../domain/llm/llm_provider.dart';
 import '../../domain/llm/prompt_formatter.dart';
 import '../../domain/llm/response_parser.dart';
+import '../../domain/llm/thinking_level.dart';
 import 'http_llm_adapter_base.dart';
 
 /// Google Gemini `generateContent` API 向けアダプター(feature-spec.md §5.1)。
@@ -16,6 +17,14 @@ class GeminiAdapter extends HttpLlmAdapterBase implements LlmAdapter {
 
   static const String _baseUrl =
       'https://generativelanguage.googleapis.com/v1beta';
+
+  /// 思考量レベルごとの `thinkingConfig.thinkingBudget`
+  /// (`docs/specs/009-thinking-level-setting.md`)。
+  static const Map<ThinkingLevel, int> _thinkingBudgets = {
+    ThinkingLevel.low: 1024,
+    ThinkingLevel.medium: 8192,
+    ThinkingLevel.high: 24576,
+  };
 
   @override
   LlmProvider get provider => LlmProvider.gemini;
@@ -52,7 +61,13 @@ class GeminiAdapter extends HttpLlmAdapterBase implements LlmAdapter {
             ],
           },
         ],
-        'generationConfig': {'temperature': config.temperature},
+        'generationConfig': {
+          'temperature': config.temperature,
+          if (_thinkingBudgets[config.thinkingLevel] != null)
+            'thinkingConfig': {
+              'thinkingBudget': _thinkingBudgets[config.thinkingLevel],
+            },
+        },
       },
     );
 

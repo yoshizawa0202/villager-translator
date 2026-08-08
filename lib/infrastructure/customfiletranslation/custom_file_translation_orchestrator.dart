@@ -80,6 +80,7 @@ class CustomFileTranslationOrchestrator {
         model: settings.llm.effectiveModel,
         temperature: settings.llm.temperature,
         maxRetries: settings.llm.maxRetries,
+        thinkingLevel: settings.llm.thinkingLevel,
       ),
     );
 

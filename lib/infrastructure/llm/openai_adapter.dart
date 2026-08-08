@@ -4,6 +4,7 @@ import '../../domain/llm/llm_adapter_config.dart';
 import '../../domain/llm/llm_provider.dart';
 import '../../domain/llm/prompt_formatter.dart';
 import '../../domain/llm/response_parser.dart';
+import '../../domain/llm/thinking_level.dart';
 import 'http_llm_adapter_base.dart';
 
 /// OpenAI Chat Completions API 向けアダプター(feature-spec.md §5.1)。
@@ -36,6 +37,8 @@ class OpenAiAdapter extends HttpLlmAdapterBase implements LlmAdapter {
       body: {
         'model': config.model,
         'temperature': config.temperature,
+        if (_reasoningEffortFor(config.thinkingLevel) != null)
+          'reasoning_effort': _reasoningEffortFor(config.thinkingLevel),
         'messages': [
           {'role': 'system', 'content': systemPrompt},
           {'role': 'user', 'content': userPrompt},
@@ -53,5 +56,20 @@ class OpenAiAdapter extends HttpLlmAdapterBase implements LlmAdapter {
       Uri.parse('$_baseUrl/models'),
       headers: {'Authorization': 'Bearer $apiKey'},
     );
+  }
+
+  /// [level] を OpenAI の `reasoning_effort` へ変換する。`off` は `null`
+  /// (パラメータを送信しないことを表す、`docs/specs/009-thinking-level-setting.md`)。
+  String? _reasoningEffortFor(ThinkingLevel level) {
+    switch (level) {
+      case ThinkingLevel.off:
+        return null;
+      case ThinkingLevel.low:
+        return 'low';
+      case ThinkingLevel.medium:
+        return 'medium';
+      case ThinkingLevel.high:
+        return 'high';
+    }
   }
 }

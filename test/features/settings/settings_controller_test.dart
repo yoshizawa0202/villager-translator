@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:villager_translator/domain/llm/llm_provider.dart';
+import 'package:villager_translator/domain/llm/thinking_level.dart';
 import 'package:villager_translator/domain/settings/app_settings.dart';
 import 'package:villager_translator/features/settings/settings_controller.dart';
 import 'package:villager_translator/infrastructure/settings/settings_repository.dart';
@@ -321,6 +322,75 @@ void main() {
 
       await controller.save();
       expect(controller.lastSavedAt, isNotNull);
+    });
+  });
+
+  group('SettingsController の思考量(docs/specs/009)', () {
+    test('選択中モデルが対応していない思考量へはエラーを返し、値が保存されない', () async {
+      final controller = SettingsController(
+        repository: repository,
+        apiKeyStore: InMemoryApiKeyStore(),
+      );
+      await controller.load();
+      // 既定は OpenAI / gpt-5.4-nano ではなく gpt-5.6-luna(思考量フル対応)。
+      // 対応していないモデルへ切り替えて検証する。
+      await controller.updateLlm(
+        (s) => s.copyWith(model: 'gpt-5.4-nano', customModel: ''),
+      );
+
+      final error = await controller.updateLlm(
+        (s) => s.copyWith(thinkingLevel: ThinkingLevel.high),
+      );
+
+      expect(error, isNotNull);
+      expect(controller.settings.llm.thinkingLevel, ThinkingLevel.off);
+    });
+
+    test('対応しているモデルでは思考量の変更がドラフトへ反映される', () async {
+      final controller = SettingsController(
+        repository: repository,
+        apiKeyStore: InMemoryApiKeyStore(),
+      );
+      await controller.load();
+
+      final error = await controller.updateLlm(
+        (s) => s.copyWith(thinkingLevel: ThinkingLevel.high),
+      );
+
+      expect(error, isNull);
+      expect(controller.settings.llm.thinkingLevel, ThinkingLevel.high);
+    });
+
+    test('プロバイダー切替後、新しい既定モデルが対応していない思考量は off へリセットされる', () async {
+      final controller = SettingsController(
+        repository: repository,
+        apiKeyStore: InMemoryApiKeyStore(),
+      );
+      await controller.load();
+      await controller.updateLlm(
+        (s) => s.copyWith(thinkingLevel: ThinkingLevel.high),
+      );
+
+      // Gemini の既定モデル(gemini-3.5-flash-lite)は思考量非対応。
+      await controller.setProvider(LlmProvider.gemini);
+
+      expect(controller.settings.llm.thinkingLevel, ThinkingLevel.off);
+    });
+
+    test('プロバイダー切替後、新しい既定モデルが対応している思考量は維持される', () async {
+      final controller = SettingsController(
+        repository: repository,
+        apiKeyStore: InMemoryApiKeyStore(),
+      );
+      await controller.load();
+      await controller.updateLlm(
+        (s) => s.copyWith(thinkingLevel: ThinkingLevel.low),
+      );
+
+      // Anthropic の既定モデル(claude-haiku-4-5)は low に対応している。
+      await controller.setProvider(LlmProvider.anthropic);
+
+      expect(controller.settings.llm.thinkingLevel, ThinkingLevel.low);
     });
   });
 

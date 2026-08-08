@@ -1,4 +1,6 @@
+import '../llm/llm_provider.dart';
 import '../llm/model_catalog.dart';
+import '../llm/thinking_level.dart';
 import 'supported_language.dart';
 
 /// 設定値の検証ロジック。
@@ -50,6 +52,28 @@ class SettingsValidator {
   static String? validateCustomModel(String model, String customModel) {
     if (model == kCustomModelSentinel && customModel.trim().isEmpty) {
       return 'カスタムモデル名を入力してください';
+    }
+    return null;
+  }
+
+  /// 選択中の [model] が [thinkingLevel] に対応しているかを検証する
+  /// (`docs/specs/009-thinking-level-setting.md`)。
+  ///
+  /// `off` は常に有効。「カスタム」選択時、および [kModelCatalog] に存在しない
+  /// モデル ID の場合は対応可否が不明なため制限しない。
+  static String? validateThinkingLevel(
+    LlmProvider provider,
+    String model,
+    ThinkingLevel thinkingLevel,
+  ) {
+    if (thinkingLevel == ThinkingLevel.off) return null;
+    if (model == kCustomModelSentinel) return null;
+
+    final info = modelInfoFor(provider, model);
+    if (info == null) return null;
+
+    if (!info.supportedThinkingLevels.contains(thinkingLevel)) {
+      return 'このモデルは選択した思考量に対応していません';
     }
     return null;
   }

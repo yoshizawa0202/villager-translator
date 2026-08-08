@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../domain/llm/model_catalog.dart';
+import '../../../domain/llm/thinking_level.dart';
 import '../../../domain/settings/settings_validator.dart';
 import '../settings_controller.dart';
 
@@ -44,7 +45,9 @@ class _ModelSelectorState extends State<ModelSelector> {
   Widget build(BuildContext context) {
     final controller = context.watch<SettingsController>();
     final llm = controller.settings.llm;
-    final candidates = kModelCatalog[llm.provider] ?? const [];
+    final candidates = (kModelCatalog[llm.provider] ?? const [])
+        .map((info) => info.id)
+        .toList();
     final selectedModel = _selectedModel ?? llm.model;
     final isCustom = selectedModel == kCustomModelSentinel;
 
@@ -80,8 +83,20 @@ class _ModelSelectorState extends State<ModelSelector> {
                 _selectedModel = value;
               });
               if (value != kCustomModelSentinel) {
+                final info = modelInfoFor(llm.provider, value);
+                final currentLevel = llm.thinkingLevel;
+                final supportsCurrentLevel =
+                    info?.supportedThinkingLevels.contains(currentLevel) ??
+                    false;
+                final newLevel = supportsCurrentLevel
+                    ? currentLevel
+                    : ThinkingLevel.off;
                 context.read<SettingsController>().updateLlm(
-                  (s) => s.copyWith(model: value, customModel: ''),
+                  (s) => s.copyWith(
+                    model: value,
+                    customModel: '',
+                    thinkingLevel: newLevel,
+                  ),
                 );
               }
             }

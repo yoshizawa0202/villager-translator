@@ -1,5 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:villager_translator/domain/llm/llm_provider.dart';
 import 'package:villager_translator/domain/llm/model_catalog.dart';
+import 'package:villager_translator/domain/llm/thinking_level.dart';
 import 'package:villager_translator/domain/settings/settings_validator.dart';
 import 'package:villager_translator/domain/settings/supported_language.dart';
 
@@ -50,6 +52,63 @@ void main() {
 
     test('カスタム未選択時は customModel が空でも有効', () {
       expect(SettingsValidator.validateCustomModel('gpt-4o-mini', ''), isNull);
+    });
+  });
+
+  group('SettingsValidator.validateThinkingLevel', () {
+    test('off は常に有効', () {
+      expect(
+        SettingsValidator.validateThinkingLevel(
+          LlmProvider.openai,
+          'gpt-5.4-nano',
+          ThinkingLevel.off,
+        ),
+        isNull,
+      );
+    });
+
+    test('モデルが対応していないレベルはエラー', () {
+      expect(
+        SettingsValidator.validateThinkingLevel(
+          LlmProvider.openai,
+          'gpt-5.4-nano',
+          ThinkingLevel.high,
+        ),
+        isNotNull,
+      );
+    });
+
+    test('モデルが対応しているレベルは有効', () {
+      expect(
+        SettingsValidator.validateThinkingLevel(
+          LlmProvider.openai,
+          'gpt-5.6-sol',
+          ThinkingLevel.high,
+        ),
+        isNull,
+      );
+    });
+
+    test('カスタムモデル選択時は制限しない', () {
+      expect(
+        SettingsValidator.validateThinkingLevel(
+          LlmProvider.openai,
+          kCustomModelSentinel,
+          ThinkingLevel.high,
+        ),
+        isNull,
+      );
+    });
+
+    test('カタログに存在しない未知のモデルは制限しない', () {
+      expect(
+        SettingsValidator.validateThinkingLevel(
+          LlmProvider.openai,
+          'unknown-model',
+          ThinkingLevel.high,
+        ),
+        isNull,
+      );
     });
   });
 
