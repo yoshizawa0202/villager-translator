@@ -4,8 +4,11 @@ import '../../domain/llm/llm_adapter.dart';
 import '../../domain/llm/llm_adapter_config.dart';
 import '../../domain/llm/llm_provider.dart';
 import 'anthropic_adapter.dart';
+import 'deepseek_adapter.dart';
 import 'gemini_adapter.dart';
+import 'kimi_adapter.dart';
 import 'openai_adapter.dart';
+import 'qwen_adapter.dart';
 
 /// [LlmProvider] から対応する [LlmAdapter] を生成する境界(feature-spec.md §5.1)。
 abstract class LlmAdapterFactory {
@@ -30,6 +33,12 @@ class DefaultLlmAdapterFactory implements LlmAdapterFactory {
         return AnthropicAdapter(config, client: _client);
       case LlmProvider.gemini:
         return GeminiAdapter(config, client: _client);
+      case LlmProvider.deepseek:
+        return DeepSeekAdapter(config, client: _client);
+      case LlmProvider.qwen:
+        return QwenAdapter(config, client: _client);
+      case LlmProvider.kimi:
+        return KimiAdapter(config, client: _client);
     }
   }
 }

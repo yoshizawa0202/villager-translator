@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../domain/llm/llm_provider.dart';
 import 'settings_controller.dart';
 import 'widgets/api_key_field.dart';
 import 'widgets/language_management_dialog.dart';
@@ -8,6 +9,7 @@ import 'widgets/llm_advanced_settings_section.dart';
 import 'widgets/model_selector.dart';
 import 'widgets/prompt_editor_section.dart';
 import 'widgets/provider_selector.dart';
+import 'widgets/qwen_base_url_field.dart';
 import 'widgets/thinking_level_selector.dart';
 import 'widgets/translation_settings_section.dart';
 
@@ -77,6 +79,7 @@ class SettingsPage extends StatelessWidget {
             const ModelSelector(),
             const SizedBox(height: 12),
             const ThinkingLevelSelector(),
+            const _QwenBaseUrlSection(),
             const SizedBox(height: 12),
             const LlmAdvancedSettingsSection(),
             const SizedBox(height: 24),
@@ -153,6 +156,25 @@ class SettingsPage extends StatelessWidget {
       context.read<SettingsController>().discardChanges();
       Navigator.of(context).pop();
     }
+  }
+}
+
+/// Qwen 選択時のみ、間隔とともに [QwenBaseUrlField] を表示する
+/// (`docs/specs/010-additional-llm-providers.md` §9)。
+class _QwenBaseUrlSection extends StatelessWidget {
+  const _QwenBaseUrlSection();
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = context.watch<SettingsController>().settings.llm.provider;
+    if (provider != LlmProvider.qwen) {
+      return const SizedBox.shrink();
+    }
+
+    return const Padding(
+      padding: EdgeInsets.only(top: 12),
+      child: QwenBaseUrlField(),
+    );
   }
 }
 

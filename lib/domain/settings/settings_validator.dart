@@ -57,23 +57,44 @@ class SettingsValidator {
   }
 
   /// 選択中の [model] が [thinkingLevel] に対応しているかを検証する
-  /// (`docs/specs/009-thinking-level-setting.md`)。
+  /// (`docs/specs/009-thinking-level-setting.md`、
+  /// `docs/specs/010-additional-llm-providers.md` AC-07)。
   ///
-  /// `off` は常に有効。「カスタム」選択時、および [kModelCatalog] に存在しない
-  /// モデル ID の場合は対応可否が不明なため制限しない。
+  /// 判断は UI と同じ [ModelCapabilities] から導出する。「カスタム」選択時、
+  /// および [kModelCatalog] に存在しないモデル ID の場合は対応可否が不明なため
+  /// 制限しない。
+  ///
+  /// `off` も無条件には許可しない。Gemini 3.7 Flash や Kimi K3 のように思考を
+  /// 無効化できないモデルが存在するため(010 §5.1)。
   static String? validateThinkingLevel(
     LlmProvider provider,
     String model,
     ThinkingLevel thinkingLevel,
   ) {
-    if (thinkingLevel == ThinkingLevel.off) return null;
     if (model == kCustomModelSentinel) return null;
+    if (modelInfoFor(provider, model) == null) return null;
 
-    final info = modelInfoFor(provider, model);
-    if (info == null) return null;
-
-    if (!info.supportedThinkingLevels.contains(thinkingLevel)) {
+    if (!capabilitiesFor(provider, model).supportsLevel(thinkingLevel)) {
       return 'このモデルは選択した思考量に対応していません';
+    }
+    return null;
+  }
+
+  /// Qwen API のベース URL(任意)を検証する(010 §9)。
+  ///
+  /// 空欄は「既定の国際向けエンドポイントを使う」ことを表すため有効とする。
+  /// 入力がある場合は、送信前に弾けるよう http/https の絶対 URL であることを
+  /// 確認する。
+  static String? validateQwenBaseUrl(String value) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) return null;
+
+    final uri = Uri.tryParse(trimmed);
+    if (uri == null ||
+        !uri.isAbsolute ||
+        (uri.scheme != 'http' && uri.scheme != 'https') ||
+        uri.host.isEmpty) {
+      return 'Qwen API ベース URL は http:// または https:// で始まる URL を入力してください';
     }
     return null;
   }

@@ -1,15 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../../domain/llm/model_catalog.dart';
 import '../../../domain/llm/thinking_level.dart';
 import '../settings_controller.dart';
 
 /// 思考量(reasoning effort / extended thinking)選択コンボボックス
-/// (`docs/specs/009-thinking-level-setting.md`)。
+/// (`docs/specs/009-thinking-level-setting.md`、
+/// `docs/specs/010-additional-llm-providers.md` AC-06)。
 ///
-/// 選択中モデルが思考量に対応していない場合は [ThinkingLevel.off] 以外を
-/// 選択不可にし、対応していない旨を注記する。
+/// 選択肢はモデル能力情報([ModelCapabilities])から導出し、選択中モデルで
+/// 利用できないレベルは一覧に表示しない。思考量に対応しないモデルでは選択自体を
+/// 無効化し、対応していない旨を注記する。
 class ThinkingLevelSelector extends StatelessWidget {
   const ThinkingLevelSelector({super.key});
 
@@ -17,28 +18,23 @@ class ThinkingLevelSelector extends StatelessWidget {
   Widget build(BuildContext context) {
     final controller = context.watch<SettingsController>();
     final llm = controller.settings.llm;
-    final info = modelInfoFor(llm.provider, llm.model);
-
-    // カスタムモデル・未知のモデルは対応可否が不明なため制限しない。
-    final supportedLevels = llm.model == kCustomModelSentinel || info == null
-        ? ThinkingLevel.values
-        : info.supportedThinkingLevels;
-    final supportsThinking = supportedLevels.any(
-      (level) => level != ThinkingLevel.off,
-    );
+    final capabilities = llm.capabilities;
+    final supportedLevels = capabilities.thinkingLevels;
+    final supportsThinking = capabilities.supportsThinking;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         DropdownButtonFormField<ThinkingLevel>(
           key: const Key('thinkingLevelSelector'),
-          initialValue: llm.thinkingLevel,
+          initialValue: supportedLevels.contains(llm.thinkingLevel)
+              ? llm.thinkingLevel
+              : null,
           decoration: const InputDecoration(labelText: '思考量'),
-          items: ThinkingLevel.values
+          items: supportedLevels
               .map(
                 (level) => DropdownMenuItem(
                   value: level,
-                  enabled: supportedLevels.contains(level),
                   child: Text(level.displayName),
                 ),
               )

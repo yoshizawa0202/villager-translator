@@ -47,11 +47,9 @@ void main() {
     });
 
     test('JSON/LANG はスキップ方針で既存があればスキップされる(受け入れ条件10)', () async {
-      final entry = _jsonEntry(
-        'config/betterquesting/DefaultQuests.lang',
-        {'a': '1'},
-        format: QuestFormat.betterQuestingDirect,
-      );
+      final entry = _jsonEntry('config/betterquesting/DefaultQuests.lang', {
+        'a': '1',
+      }, format: QuestFormat.betterQuestingDirect);
 
       final result = await translateQuestEntries(
         selectedEntries: [entry],
@@ -66,11 +64,10 @@ void main() {
     });
 
     test('JSON/LANG は全て再翻訳方針で既存があっても全キー翻訳される(受け入れ条件10)', () async {
-      final entry = _jsonEntry(
-        'kubejs/assets/kubejs/lang/en_us.json',
-        {'a': '1', 'b': '2'},
-        format: QuestFormat.ftbQuestsKubejsLang,
-      );
+      final entry = _jsonEntry('kubejs/assets/kubejs/lang/en_us.json', {
+        'a': '1',
+        'b': '2',
+      }, format: QuestFormat.ftbQuestsKubejsLang);
 
       final result = await translateQuestEntries(
         selectedEntries: [entry],

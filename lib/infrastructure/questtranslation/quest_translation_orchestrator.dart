@@ -5,7 +5,6 @@ import 'package:path/path.dart' as p;
 import '../../domain/common/cancellation_token.dart';
 import '../../domain/common/translation_progress.dart';
 import '../../domain/common/translation_summary.dart';
-import '../../domain/llm/llm_adapter_config.dart';
 import '../../domain/questtranslation/quest_output_builder.dart';
 import '../../domain/questtranslation/quest_scan_entry.dart';
 import '../../domain/questtranslation/quest_translation_service.dart';
@@ -85,13 +84,7 @@ class QuestTranslationOrchestrator {
 
     final adapter = _adapterFactory.create(
       settings.llm.provider,
-      LlmAdapterConfig(
-        apiKey: apiKey,
-        model: settings.llm.effectiveModel,
-        temperature: settings.llm.temperature,
-        maxRetries: settings.llm.maxRetries,
-        thinkingLevel: settings.llm.thinkingLevel,
-      ),
+      settings.llm.toAdapterConfig(apiKey: apiKey),
     );
 
     Future<Map<String, String>> translateChunk(Map<String, String> chunk) {

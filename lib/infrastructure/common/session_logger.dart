@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 
 import '../../domain/common/translation_summary.dart';
+import '../../domain/llm/llm_provider.dart';
 import 'session_paths.dart';
 
 /// ログの重大度(feature-spec.md §11)。
@@ -211,5 +212,28 @@ extension SessionLoggerSummaryLogging on SessionLogger {
         isMilestone: true,
       );
     }
+  }
+}
+
+/// 翻訳セッションの開始行を記録する拡張
+/// (`docs/specs/010-additional-llm-providers.md` §12、AC-18)。
+///
+/// どのプロバイダー・モデルで実行したかを後から追跡できるよう、開始行に
+/// プロバイダー ID とモデル名を残す。API キー・Authorization ヘッダー・
+/// その他の秘密情報は記録しない。
+extension SessionLoggerStartLogging on SessionLogger {
+  void logTranslationStart({
+    required int itemCount,
+    required String targetLanguageId,
+    required LlmProvider provider,
+    required String model,
+  }) {
+    log(
+      LogLevel.info,
+      'translate',
+      '翻訳を開始しました(対象 $itemCount 件、言語 $targetLanguageId、'
+          'プロバイダー ${provider.id}、モデル $model)',
+      isMilestone: true,
+    );
   }
 }

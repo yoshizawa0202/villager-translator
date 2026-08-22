@@ -8,7 +8,6 @@ import '../../domain/common/translation_summary.dart';
 import '../../domain/customfiletranslation/custom_file_output_builder.dart';
 import '../../domain/customfiletranslation/custom_file_scan_entry.dart';
 import '../../domain/customfiletranslation/custom_file_translation_service.dart';
-import '../../domain/llm/llm_adapter_config.dart';
 import '../../domain/settings/app_settings.dart';
 import '../common/translation_summary_writer.dart';
 import '../llm/llm_adapter_factory.dart';
@@ -75,13 +74,7 @@ class CustomFileTranslationOrchestrator {
   }) async {
     final adapter = _adapterFactory.create(
       settings.llm.provider,
-      LlmAdapterConfig(
-        apiKey: apiKey,
-        model: settings.llm.effectiveModel,
-        temperature: settings.llm.temperature,
-        maxRetries: settings.llm.maxRetries,
-        thinkingLevel: settings.llm.thinkingLevel,
-      ),
+      settings.llm.toAdapterConfig(apiKey: apiKey),
     );
 
     Future<Map<String, String>> translateChunk(Map<String, String> chunk) {

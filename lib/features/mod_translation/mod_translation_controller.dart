@@ -249,11 +249,11 @@ class ModTranslationController extends ChangeNotifier {
       profileDirectory: directory,
       sessionId: sessionId,
     );
-    _sessionLogger.log(
-      LogLevel.info,
-      'translate',
-      '翻訳を開始しました(対象 ${selected.length} 件、言語 $_targetLanguageId)',
-      isMilestone: true,
+    _sessionLogger.logTranslationStart(
+      itemCount: selected.length,
+      targetLanguageId: _targetLanguageId,
+      provider: settings.llm.provider,
+      model: settings.llm.effectiveModel,
     );
 
     try {

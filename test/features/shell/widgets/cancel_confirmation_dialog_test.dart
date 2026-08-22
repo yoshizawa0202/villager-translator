@@ -25,10 +25,7 @@ void main() {
       await tester.tap(find.byKey(const Key('openDialogButton')));
       await tester.pumpAndSettle();
 
-      expect(
-        find.byKey(const Key('cancelConfirmationDialog')),
-        findsOneWidget,
-      );
+      expect(find.byKey(const Key('cancelConfirmationDialog')), findsOneWidget);
       expect(find.text('翻訳をキャンセルしますか?'), findsOneWidget);
 
       await tester.tap(
