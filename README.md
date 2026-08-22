@@ -9,6 +9,8 @@ Minecraft の MOD、クエスト、Patchouli ガイドブックをローカル�
 - 仕様、設計、開発手順、UI の文言は日本語で記述します。
 - API キーや個人の Minecraft データはリポジトリへ追加しません。
 
+パーツa
+
 ## 現在の仕様
 
 初期基盤の仕様は [docs/specs/001-foundation.md](docs/specs/001-foundation.md) にあります。機能追加時は、番号付きの仕様書を先に追加または更新し、受け入れ条件を満たすテストと実装を同じ変更に含めます。
