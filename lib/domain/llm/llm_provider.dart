@@ -1,11 +1,18 @@
 /// サポートする LLM プロバイダー。
 ///
-/// 識別子は `openai` / `anthropic` / `gemini` の3種類のみとし、
-/// 旧実装に存在した `"google"` という識別子は使用しない。
+/// 識別子は `openai` / `anthropic` / `gemini` / `deepseek` / `qwen` / `kimi` の
+/// 6種類のみとし、旧実装に存在した `"google"` という識別子は使用しない
+/// (`docs/specs/010-additional-llm-providers.md` §5)。
+///
+/// [id] はセキュアストレージの API キーのキー名にも使うため、プロバイダーごとに
+/// 一意でなければならない(010 AC-03: API キーの独立保存)。
 enum LlmProvider {
   openai('openai', 'OpenAI'),
   anthropic('anthropic', 'Anthropic'),
-  gemini('gemini', 'Google Gemini');
+  gemini('gemini', 'Google Gemini'),
+  deepseek('deepseek', 'DeepSeek'),
+  qwen('qwen', 'Qwen'),
+  kimi('kimi', 'Kimi');
 
   const LlmProvider(this.id, this.displayName);
 

@@ -5,7 +5,6 @@ import 'package:path/path.dart' as p;
 import '../../domain/common/cancellation_token.dart';
 import '../../domain/common/translation_progress.dart';
 import '../../domain/common/translation_summary.dart';
-import '../../domain/llm/llm_adapter_config.dart';
 import '../../domain/modtranslation/jar_contents.dart';
 import '../../domain/modtranslation/mod_scan_entry.dart';
 import '../../domain/modtranslation/mod_translation_service.dart';
@@ -99,13 +98,7 @@ class ModTranslationOrchestrator {
   }) async {
     final adapter = _adapterFactory.create(
       settings.llm.provider,
-      LlmAdapterConfig(
-        apiKey: apiKey,
-        model: settings.llm.effectiveModel,
-        temperature: settings.llm.temperature,
-        maxRetries: settings.llm.maxRetries,
-        thinkingLevel: settings.llm.thinkingLevel,
-      ),
+      settings.llm.toAdapterConfig(apiKey: apiKey),
     );
 
     final translation = settings.translation;

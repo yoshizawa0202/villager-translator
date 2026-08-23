@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:villager_translator/domain/llm/llm_adapter_config.dart';
 import 'package:villager_translator/domain/llm/llm_provider.dart';
+import 'package:villager_translator/domain/llm/model_catalog.dart';
 import 'package:villager_translator/domain/llm/thinking_level.dart';
 import 'package:villager_translator/infrastructure/llm/gemini_adapter.dart';
 
@@ -99,7 +100,10 @@ void main() {
     });
 
     final adapter = GeminiAdapter(config, client: client);
-    await adapter.translate(content: {'greeting': 'Hello'}, targetLanguage: 'ja');
+    await adapter.translate(
+      content: {'greeting': 'Hello'},
+      targetLanguage: 'ja',
+    );
 
     expect(
       (capturedBody!['generationConfig'] as Map<String, dynamic>).containsKey(
@@ -109,43 +113,208 @@ void main() {
     );
   });
 
-  test('thinkingLevel が high の場合 thinkingConfig.thinkingBudget を送信する', () async {
-    Map<String, dynamic>? capturedBody;
-    final client = MockClient((request) async {
-      capturedBody = jsonDecode(request.body) as Map<String, dynamic>;
-      return http.Response(
-        jsonEncode({
-          'candidates': [
-            {
-              'content': {
-                'parts': [
-                  {'text': 'greeting: こんにちは'},
-                ],
+  test(
+    'thinkingLevel が high の場合 thinkingConfig.thinkingBudget を送信する',
+    () async {
+      Map<String, dynamic>? capturedBody;
+      final client = MockClient((request) async {
+        capturedBody = jsonDecode(request.body) as Map<String, dynamic>;
+        return http.Response(
+          jsonEncode({
+            'candidates': [
+              {
+                'content': {
+                  'parts': [
+                    {'text': 'greeting: こんにちは'},
+                  ],
+                },
               },
-            },
-          ],
-        }),
-        200,
-        headers: {'content-type': 'application/json; charset=utf-8'},
+            ],
+          }),
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      });
+
+      final adapter = GeminiAdapter(
+        const LlmAdapterConfig(
+          apiKey: 'test-key',
+          model: 'gemini-1.5-flash',
+          temperature: 0.5,
+          maxRetries: 3,
+          thinkingLevel: ThinkingLevel.high,
+        ),
+        client: client,
       );
+      await adapter.translate(
+        content: {'greeting': 'Hello'},
+        targetLanguage: 'ja',
+      );
+
+      final generationConfig =
+          capturedBody!['generationConfig'] as Map<String, dynamic>;
+      final thinkingConfig =
+          generationConfig['thinkingConfig'] as Map<String, dynamic>;
+      expect(thinkingConfig['thinkingBudget'], 24576);
+    },
+  );
+
+  group('Gemini 3.7 Flash (010 AC-10)', () {
+    LlmAdapterConfig flashConfig(ThinkingLevel level) => LlmAdapterConfig(
+      apiKey: 'test-key',
+      model: 'gemini-3.7-flash',
+      temperature: 0.5,
+      maxRetries: 3,
+      thinkingLevel: level,
+      capabilities: capabilitiesFor(LlmProvider.gemini, 'gemini-3.7-flash'),
+    );
+
+    ({http.Client client, List<Map<String, dynamic>> bodies})
+    recordingClient() {
+      final bodies = <Map<String, dynamic>>[];
+      final client = MockClient((request) async {
+        bodies.add(jsonDecode(request.body) as Map<String, dynamic>);
+        return http.Response(
+          jsonEncode({
+            'candidates': [
+              {
+                'content': {
+                  'parts': [
+                    {'text': 'greeting: こんにちは'},
+                  ],
+                },
+              },
+            ],
+          }),
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      });
+      return (client: client, bodies: bodies);
+    }
+
+    test('thinkingConfig.thinkingLevel を送信する', () async {
+      for (final entry in {
+        ThinkingLevel.low: 'low',
+        ThinkingLevel.medium: 'medium',
+        ThinkingLevel.high: 'high',
+      }.entries) {
+        final recorded = recordingClient();
+        final adapter = GeminiAdapter(
+          flashConfig(entry.key),
+          client: recorded.client,
+        );
+
+        await adapter.translate(
+          content: {'greeting': 'Hello'},
+          targetLanguage: 'ja',
+        );
+
+        final generationConfig =
+            recorded.bodies.single['generationConfig'] as Map<String, dynamic>;
+        final thinkingConfig =
+            generationConfig['thinkingConfig'] as Map<String, dynamic>;
+        expect(thinkingConfig['thinkingLevel'], entry.value);
+        expect(thinkingConfig.containsKey('thinkingBudget'), isFalse);
+      }
     });
 
-    final adapter = GeminiAdapter(
-      const LlmAdapterConfig(
-        apiKey: 'test-key',
-        model: 'gemini-1.5-flash',
-        temperature: 0.5,
-        maxRetries: 3,
-        thinkingLevel: ThinkingLevel.high,
-      ),
-      client: client,
-    );
-    await adapter.translate(content: {'greeting': 'Hello'}, targetLanguage: 'ja');
+    test(
+      'thinkingBudget・temperature・topP・topK・candidateCount を送信しない',
+      () async {
+        final recorded = recordingClient();
+        final adapter = GeminiAdapter(
+          flashConfig(ThinkingLevel.medium),
+          client: recorded.client,
+        );
 
-    final generationConfig =
-        capturedBody!['generationConfig'] as Map<String, dynamic>;
-    final thinkingConfig =
-        generationConfig['thinkingConfig'] as Map<String, dynamic>;
-    expect(thinkingConfig['thinkingBudget'], 24576);
+        await adapter.translate(
+          content: {'greeting': 'Hello'},
+          targetLanguage: 'ja',
+        );
+
+        final generationConfig =
+            recorded.bodies.single['generationConfig'] as Map<String, dynamic>;
+        for (final forbidden in [
+          'thinkingBudget',
+          'temperature',
+          'topP',
+          'topK',
+          'candidateCount',
+        ]) {
+          expect(
+            jsonEncode(recorded.bodies.single).contains(forbidden),
+            isFalse,
+            reason: '$forbidden を送信している',
+          );
+        }
+        expect(generationConfig.keys, equals(['thinkingConfig']));
+      },
+    );
+
+    test('thinkingLevel 方式を使うのは Gemini 3.7 Flash だけ (010 AC-11)', () {
+      expect(GeminiAdapter.thinkingLevelModels, equals({'gemini-3.7-flash'}));
+
+      final legacy = GeminiAdapter(
+        const LlmAdapterConfig(
+          apiKey: 'k',
+          model: 'gemini-3.6-flash',
+          temperature: 0.5,
+          maxRetries: 3,
+        ),
+        client: MockClient((_) async => http.Response('{}', 200)),
+      );
+      expect(legacy.usesThinkingLevel, isFalse);
+    });
+  });
+
+  group('既存 Gemini モデルの後方互換 (010 AC-11)', () {
+    test('従来どおり thinkingBudget と temperature を送信する', () async {
+      Map<String, dynamic>? capturedBody;
+      final client = MockClient((request) async {
+        capturedBody = jsonDecode(request.body) as Map<String, dynamic>;
+        return http.Response(
+          jsonEncode({
+            'candidates': [
+              {
+                'content': {
+                  'parts': [
+                    {'text': 'greeting: こんにちは'},
+                  ],
+                },
+              },
+            ],
+          }),
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      });
+
+      final adapter = GeminiAdapter(
+        LlmAdapterConfig(
+          apiKey: 'test-key',
+          model: 'gemini-3.6-flash',
+          temperature: 0.5,
+          maxRetries: 3,
+          thinkingLevel: ThinkingLevel.medium,
+          capabilities: capabilitiesFor(LlmProvider.gemini, 'gemini-3.6-flash'),
+        ),
+        client: client,
+      );
+
+      await adapter.translate(
+        content: {'greeting': 'Hello'},
+        targetLanguage: 'ja',
+      );
+
+      final generationConfig =
+          capturedBody!['generationConfig'] as Map<String, dynamic>;
+      expect(generationConfig['temperature'], 0.5);
+      expect(
+        (generationConfig['thinkingConfig']
+            as Map<String, dynamic>)['thinkingBudget'],
+        8192,
+      );
+    });
   });
 }

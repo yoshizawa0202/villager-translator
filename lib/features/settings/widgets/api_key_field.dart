@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../../domain/llm/llm_api_exception.dart';
 import '../../../domain/llm/llm_provider.dart';
 import '../settings_controller.dart';
+
+/// 接続確認が成功したときの表示メッセージ。全対象プロバイダーで統一する
+/// (`docs/specs/010-additional-llm-providers.md` §10、AC-16)。
+const String kConnectionSuccessMessage = 'API接続に成功しました。';
 
 /// API キー入力欄。表示/非表示切替アイコンと接続確認ボタンを持つ
 /// (feature-spec.md §4.1、受け入れ条件4・11)。
@@ -114,13 +119,25 @@ class _ApiKeyFieldState extends State<ApiKeyField> {
   ) async {
     final controller = context.read<SettingsController>();
     final candidateApiKey = _textController.text;
-    final isValid = await controller.testApiKey(provider, candidateApiKey);
+
+    bool isValid;
+    String message;
+    try {
+      isValid = await controller.testApiKey(provider, candidateApiKey);
+      message = isValid ? kConnectionSuccessMessage : 'API接続に失敗しました。';
+    } on LlmApiException catch (error) {
+      // メッセージは HTTP 基底クラスで利用者向けの日本語へ変換済みで、
+      // API キー・応答本文を含まない(010 §11)。
+      isValid = false;
+      message = error.message;
+    }
+
     if (isValid) {
       await controller.setApiKey(provider, candidateApiKey);
     }
     if (!mounted) return;
     setState(() {
-      _testResultMessage = isValid ? '接続に成功しました' : '接続に失敗しました';
+      _testResultMessage = message;
     });
   }
 }

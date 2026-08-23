@@ -5,7 +5,6 @@ import 'package:path/path.dart' as p;
 import '../../domain/common/cancellation_token.dart';
 import '../../domain/common/translation_progress.dart';
 import '../../domain/common/translation_summary.dart';
-import '../../domain/llm/llm_adapter_config.dart';
 import '../../domain/modtranslation/jar_contents.dart';
 import '../../domain/patchoulitranslation/patchouli_book_entry.dart';
 import '../../domain/patchoulitranslation/patchouli_output_builder.dart';
@@ -84,13 +83,7 @@ class PatchouliTranslationOrchestrator {
   }) async {
     final adapter = _adapterFactory.create(
       settings.llm.provider,
-      LlmAdapterConfig(
-        apiKey: apiKey,
-        model: settings.llm.effectiveModel,
-        temperature: settings.llm.temperature,
-        maxRetries: settings.llm.maxRetries,
-        thinkingLevel: settings.llm.thinkingLevel,
-      ),
+      settings.llm.toAdapterConfig(apiKey: apiKey),
     );
 
     Future<Map<String, String>> translateChunk(Map<String, String> chunk) {

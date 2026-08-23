@@ -17,6 +17,14 @@ Minecraft の MOD、クエスト、Patchouli ガイドブックをローカル�
 
 移行元の要件は `../MinecraftModsLocalizer/docs/spec.md` を参照してください。新規実装の正本はこのリポジトリ内の `docs/specs/` です。
 
+## 対応 LLM プロバイダー
+
+OpenAI、Anthropic、Google Gemini、DeepSeek、Qwen、Kimi の 6 プロバイダーに対応しています。API キーはプロバイダーごとに独立して Windows の資格情報マネージャーへ保存されます。
+
+思考量(reasoning effort / extended thinking)の選択肢と既定値、`temperature` の送信可否はモデルごとに異なり、`lib/domain/llm/model_catalog.dart` の `ModelCapabilities` を唯一の判断元として設定画面・入力検証・API リクエストへ反映されます。Qwen では設定画面で API ベース URL を任意に上書きできます。
+
+詳細は [docs/specs/010-additional-llm-providers.md](docs/specs/010-additional-llm-providers.md) を参照してください。
+
 ## 前提条件
 
 - Windows 10/11

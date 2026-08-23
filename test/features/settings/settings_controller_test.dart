@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:villager_translator/domain/llm/llm_provider.dart';
+import 'package:villager_translator/domain/llm/model_catalog.dart';
 import 'package:villager_translator/domain/llm/thinking_level.dart';
 import 'package:villager_translator/domain/settings/app_settings.dart';
 import 'package:villager_translator/features/settings/settings_controller.dart';
@@ -361,7 +362,7 @@ void main() {
       expect(controller.settings.llm.thinkingLevel, ThinkingLevel.high);
     });
 
-    test('プロバイダー切替後、新しい既定モデルが対応していない思考量は off へリセットされる', () async {
+    test('プロバイダー切替後、新しい既定モデルが対応していない思考量は既定値へリセットされる', () async {
       final controller = SettingsController(
         repository: repository,
         apiKeyStore: InMemoryApiKeyStore(),
@@ -371,26 +372,133 @@ void main() {
         (s) => s.copyWith(thinkingLevel: ThinkingLevel.high),
       );
 
-      // Gemini の既定モデル(gemini-3.5-flash-lite)は思考量非対応。
-      await controller.setProvider(LlmProvider.gemini);
+      // Qwen の既定モデル(qwen3.8-max)は OFF / ON のみで high に対応しない。
+      await controller.setProvider(LlmProvider.qwen);
 
       expect(controller.settings.llm.thinkingLevel, ThinkingLevel.off);
     });
 
-    test('プロバイダー切替後、新しい既定モデルが対応している思考量は維持される', () async {
+    test('思考量 OFF 非対応のプロバイダーへ切り替えるとモデルの既定思考量になる (010 AC-06)', () async {
       final controller = SettingsController(
         repository: repository,
         apiKeyStore: InMemoryApiKeyStore(),
       );
       await controller.load();
+
+      // Gemini の既定モデル(gemini-3.7-flash)は 低/中/高 で既定は中。
+      await controller.setProvider(LlmProvider.gemini);
+      expect(controller.settings.llm.model, 'gemini-3.7-flash');
+      expect(controller.settings.llm.thinkingLevel, ThinkingLevel.medium);
+
+      // Kimi の既定モデル(kimi-k3)は 低/高/最大 で既定は最大。
+      await controller.setProvider(LlmProvider.kimi);
+      expect(controller.settings.llm.model, 'kimi-k3');
+      expect(controller.settings.llm.thinkingLevel, ThinkingLevel.max);
+    });
+
+    test('全プロバイダーで既定モデルと既定思考量の組み合わせが検証を通る (010 AC-07)', () async {
+      final controller = SettingsController(
+        repository: repository,
+        apiKeyStore: InMemoryApiKeyStore(),
+      );
+      await controller.load();
+
+      for (final provider in LlmProvider.values) {
+        final error = await controller.setProvider(provider);
+        expect(error, isNull, reason: '${provider.id} の既定設定が検証を通らない');
+        expect(controller.settings.llm.model, kDefaultModel[provider]);
+      }
+    });
+
+    test('デフォルトに戻すと現在のプロバイダーの既定モデル・既定思考量になる', () async {
+      final controller = SettingsController(
+        repository: repository,
+        apiKeyStore: InMemoryApiKeyStore(),
+      );
+      await controller.load();
+      await controller.setProvider(LlmProvider.kimi);
       await controller.updateLlm(
         (s) => s.copyWith(thinkingLevel: ThinkingLevel.low),
       );
 
-      // Anthropic の既定モデル(claude-haiku-4-5)は low に対応している。
-      await controller.setProvider(LlmProvider.anthropic);
+      await controller.resetToDefaults();
 
-      expect(controller.settings.llm.thinkingLevel, ThinkingLevel.low);
+      expect(controller.settings.llm.provider, LlmProvider.kimi);
+      expect(controller.settings.llm.model, 'kimi-k3');
+      expect(controller.settings.llm.thinkingLevel, ThinkingLevel.max);
+    });
+  });
+
+  group('SettingsController の Qwen ベース URL (010 AC-15)', () {
+    test('正しい URL はドラフトへ反映される', () async {
+      final controller = SettingsController(
+        repository: repository,
+        apiKeyStore: InMemoryApiKeyStore(),
+      );
+      await controller.load();
+      await controller.setProvider(LlmProvider.qwen);
+
+      final error = await controller.updateLlm(
+        (s) => s.copyWith(qwenBaseUrl: 'https://example.test/v1'),
+      );
+
+      expect(error, isNull);
+      expect(controller.settings.llm.qwenBaseUrl, 'https://example.test/v1');
+    });
+
+    test('不正な URL はエラーになりドラフトへ反映されない', () async {
+      final controller = SettingsController(
+        repository: repository,
+        apiKeyStore: InMemoryApiKeyStore(),
+      );
+      await controller.load();
+      await controller.setProvider(LlmProvider.qwen);
+
+      final error = await controller.updateLlm(
+        (s) => s.copyWith(qwenBaseUrl: 'not a url'),
+      );
+
+      expect(error, isNotNull);
+      expect(controller.settings.llm.qwenBaseUrl, '');
+    });
+  });
+
+  group('SettingsController の API キー独立保存 (010 AC-03)', () {
+    test('6プロバイダーの API キーが互いに上書きされずに保存・復元される', () async {
+      final apiKeyStore = InMemoryApiKeyStore();
+      final controller = SettingsController(
+        repository: repository,
+        apiKeyStore: apiKeyStore,
+      );
+      await controller.load();
+
+      for (final provider in LlmProvider.values) {
+        await controller.setApiKey(provider, 'key-${provider.id}');
+      }
+      await controller.save();
+
+      for (final provider in LlmProvider.values) {
+        expect(await apiKeyStore.read(provider), 'key-${provider.id}');
+      }
+
+      // 1つだけ更新しても他プロバイダーの保存値は変わらない。
+      await controller.setApiKey(LlmProvider.kimi, 'kimi-updated');
+      await controller.save();
+
+      expect(await apiKeyStore.read(LlmProvider.kimi), 'kimi-updated');
+      for (final provider in LlmProvider.values) {
+        if (provider == LlmProvider.kimi) continue;
+        expect(await apiKeyStore.read(provider), 'key-${provider.id}');
+      }
+
+      final reloaded = SettingsController(
+        repository: repository,
+        apiKeyStore: apiKeyStore,
+      );
+      await reloaded.load();
+      expect(reloaded.apiKeyFor(LlmProvider.deepseek), 'key-deepseek');
+      expect(reloaded.apiKeyFor(LlmProvider.qwen), 'key-qwen');
+      expect(reloaded.apiKeyFor(LlmProvider.kimi), 'kimi-updated');
     });
   });
 

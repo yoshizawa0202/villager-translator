@@ -22,10 +22,16 @@ class AnthropicAdapter extends HttpLlmAdapterBase implements LlmAdapter {
   /// 思考量レベルごとの `thinking.budget_tokens`。
   /// いずれも [maxOutputTokens] 未満(Anthropic API の `budget_tokens < max_tokens`
   /// 制約を満たすため、`docs/specs/009-thinking-level-setting.md`)。
+  ///
+  /// `on` / `max` は Anthropic モデルのカタログでは選択肢に出ないが、カスタム
+  /// モデル経由で渡された場合に備えて近い段階へ割り当てる
+  /// (`docs/specs/010-additional-llm-providers.md` §6.1)。
   static const Map<ThinkingLevel, int> _thinkingBudgetTokens = {
     ThinkingLevel.low: 1024,
+    ThinkingLevel.on: 2048,
     ThinkingLevel.medium: 2048,
     ThinkingLevel.high: 3072,
+    ThinkingLevel.max: 3072,
   };
 
   @override
