@@ -1,4 +1,5 @@
 import '../llm/default_prompts.dart';
+import '../llm/llm_adapter_config.dart';
 import '../llm/llm_provider.dart';
 import '../llm/model_catalog.dart';
 import '../llm/thinking_level.dart';
@@ -17,6 +18,7 @@ class LlmSettings {
     required this.systemPrompt,
     required this.userPrompt,
     required this.thinkingLevel,
+    this.qwenBaseUrl = '',
   });
 
   final LlmProvider provider;
@@ -35,9 +37,40 @@ class LlmSettings {
   /// 思考量(`docs/specs/009-thinking-level-setting.md`)。
   final ThinkingLevel thinkingLevel;
 
+  /// Qwen API のベース URL の任意上書き(`docs/specs/010-additional-llm-providers.md` §9)。
+  /// 空欄の場合は Qwen アダプターの既定(国際向けエンドポイント)を使う。
+  final String qwenBaseUrl;
+
   /// 実際に API 呼び出しへ渡すモデル名。
   String get effectiveModel =>
       model == kCustomModelSentinel ? customModel : model;
+
+  /// 選択中モデルの能力情報(010 §6.2)。UI・検証・アダプターはすべてこれを使う。
+  ModelCapabilities get capabilities =>
+      capabilitiesFor(provider, effectiveModel);
+
+  /// [qwenBaseUrl] の前後空白を除いた値。空欄なら `null`。
+  String? get normalizedQwenBaseUrl {
+    final trimmed = qwenBaseUrl.trim();
+    return trimmed.isEmpty ? null : trimmed;
+  }
+
+  /// アダプター生成に必要な設定を組み立てる(010 §7.3)。
+  ///
+  /// 4つの翻訳オーケストレーターと設定画面の接続確認は個別に設定を組み立てず、
+  /// 必ずこのメソッドを使う。ベース URL の上書きは Qwen 選択時のみ渡し、
+  /// 他プロバイダーのアダプターへは渡さない(010 AC-15)。
+  LlmAdapterConfig toAdapterConfig({required String apiKey}) {
+    return LlmAdapterConfig(
+      apiKey: apiKey,
+      model: effectiveModel,
+      temperature: temperature,
+      maxRetries: maxRetries,
+      thinkingLevel: thinkingLevel,
+      baseUrl: provider == LlmProvider.qwen ? normalizedQwenBaseUrl : null,
+      capabilities: capabilities,
+    );
+  }
 
   static LlmSettings defaults() {
     const provider = LlmProvider.openai;
@@ -50,6 +83,7 @@ class LlmSettings {
       systemPrompt: kDefaultSystemPrompt,
       userPrompt: kDefaultUserPrompt,
       thinkingLevel: ThinkingLevel.off,
+      qwenBaseUrl: '',
     );
   }
 
@@ -62,6 +96,7 @@ class LlmSettings {
     String? systemPrompt,
     String? userPrompt,
     ThinkingLevel? thinkingLevel,
+    String? qwenBaseUrl,
   }) {
     return LlmSettings(
       provider: provider ?? this.provider,
@@ -72,6 +107,7 @@ class LlmSettings {
       systemPrompt: systemPrompt ?? this.systemPrompt,
       userPrompt: userPrompt ?? this.userPrompt,
       thinkingLevel: thinkingLevel ?? this.thinkingLevel,
+      qwenBaseUrl: qwenBaseUrl ?? this.qwenBaseUrl,
     );
   }
 
@@ -84,6 +120,7 @@ class LlmSettings {
     'systemPrompt': systemPrompt,
     'userPrompt': userPrompt,
     'thinkingLevel': thinkingLevel.id,
+    'qwenBaseUrl': qwenBaseUrl,
   };
 
   /// JSON から復元する。欠損・不正な値はフィールド単位で既定値にフォールバックし、
@@ -117,6 +154,7 @@ class LlmSettings {
       systemPrompt: json['systemPrompt'] as String? ?? fallback.systemPrompt,
       userPrompt: json['userPrompt'] as String? ?? fallback.userPrompt,
       thinkingLevel: resolvedThinkingLevel,
+      qwenBaseUrl: json['qwenBaseUrl'] as String? ?? fallback.qwenBaseUrl,
     );
   }
 }

@@ -106,3 +106,23 @@ install(DIRECTORY "${PROJECT_BUILD_DIR}/${FLUTTER_ASSET_DIR_NAME}"
 install(FILES "${AOT_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_DATA_DIR}"
   CONFIGURATIONS Profile;Release
   COMPONENT Runtime)
+
+# === Visual C++ ランタイムの同梱 ===
+# Flutter Windows アプリは EXE 単体では動作せず、Visual C++ 再頒布可能
+# パッケージが未導入の環境では起動に失敗する。利用者が ZIP を展開して
+# ダブルクリックするだけで起動できるようにするため、Release / Profile では
+# 必要なランタイム DLL(msvcp140.dll、vcruntime140.dll、vcruntime140_1.dll 等)
+# を配布物へ同梱する(docs/specs/010-additional-llm-providers.md §16、AC-19)。
+#
+# CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS_SKIP を有効にして
+# InstallRequiredSystemLibraries 自身の install ルールを抑止し、
+# Flutter の配布レイアウト(EXE と同階層)へ自分で配置する。
+set(CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS_SKIP ON)
+set(CMAKE_INSTALL_UCRT_LIBRARIES OFF)
+include(InstallRequiredSystemLibraries)
+if(CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS)
+  install(FILES ${CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS}
+    DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
+    CONFIGURATIONS Profile;Release
+    COMPONENT Runtime)
+endif()

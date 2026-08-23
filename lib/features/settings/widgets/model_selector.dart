@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../domain/llm/model_catalog.dart';
-import '../../../domain/llm/thinking_level.dart';
 import '../../../domain/settings/settings_validator.dart';
 import '../settings_controller.dart';
 
@@ -83,14 +82,13 @@ class _ModelSelectorState extends State<ModelSelector> {
                 _selectedModel = value;
               });
               if (value != kCustomModelSentinel) {
-                final info = modelInfoFor(llm.provider, value);
-                final currentLevel = llm.thinkingLevel;
-                final supportsCurrentLevel =
-                    info?.supportedThinkingLevels.contains(currentLevel) ??
-                    false;
-                final newLevel = supportsCurrentLevel
-                    ? currentLevel
-                    : ThinkingLevel.off;
+                // 思考量はモデル能力情報から導出する。切り替え先で現在の選択が
+                // 使えなければ、そのモデルの既定思考量を採用する
+                // (`docs/specs/010-additional-llm-providers.md` AC-06・AC-07)。
+                final capabilities = capabilitiesFor(llm.provider, value);
+                final newLevel = capabilities.supportsLevel(llm.thinkingLevel)
+                    ? llm.thinkingLevel
+                    : capabilities.defaultThinkingLevel;
                 context.read<SettingsController>().updateLlm(
                   (s) => s.copyWith(
                     model: value,

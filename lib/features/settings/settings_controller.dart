@@ -1,9 +1,7 @@
 import 'package:flutter/foundation.dart';
 
-import '../../domain/llm/llm_adapter_config.dart';
 import '../../domain/llm/llm_provider.dart';
 import '../../domain/llm/model_catalog.dart';
-import '../../domain/llm/thinking_level.dart';
 import '../../domain/settings/app_settings.dart';
 import '../../domain/settings/llm_settings.dart';
 import '../../domain/settings/settings_validator.dart';
@@ -102,21 +100,21 @@ class SettingsController extends ChangeNotifier {
   }
 
   /// プロバイダーを切り替える。モデルはそのプロバイダーの既定モデルへリセットする。
-  /// 選択中の思考量が新しい既定モデルで対応していない場合は `off` へリセットする
-  /// (対応していれば維持する。`docs/specs/009-thinking-level-setting.md`)。
+  /// 思考量は、新しい既定モデルが現在の選択に対応していれば維持し、対応して
+  /// いなければそのモデルの既定思考量へリセットする(モデル能力情報から導出、
+  /// `docs/specs/009-thinking-level-setting.md`、
+  /// `docs/specs/010-additional-llm-providers.md` AC-06・AC-07)。
   Future<String?> setProvider(LlmProvider provider) {
     final defaultModel = kDefaultModel[provider]!;
-    final info = modelInfoFor(provider, defaultModel);
+    final capabilities = capabilitiesFor(provider, defaultModel);
     return updateLlm((llm) {
-      final supportsCurrentLevel =
-          info?.supportedThinkingLevels.contains(llm.thinkingLevel) ?? false;
       return llm.copyWith(
         provider: provider,
         model: defaultModel,
         customModel: '',
-        thinkingLevel: supportsCurrentLevel
+        thinkingLevel: capabilities.supportsLevel(llm.thinkingLevel)
             ? llm.thinkingLevel
-            : ThinkingLevel.off,
+            : capabilities.defaultThinkingLevel,
       );
     });
   }
@@ -211,9 +209,16 @@ class SettingsController extends ChangeNotifier {
   /// 明示的な確定操作であるため、保存ボタンを介さず即時に永続化する。
   Future<void> resetToDefaults() async {
     final currentProvider = _settings.llm.provider;
+    final defaultModel = kDefaultModel[currentProvider]!;
     final llmDefaults = LlmSettings.defaults().copyWith(
       provider: currentProvider,
-      model: kDefaultModel[currentProvider]!,
+      model: defaultModel,
+      // 既定モデルが思考量 OFF に対応しない場合(Gemini 3.7 Flash・Kimi K3)も
+      // 有効な組み合わせになるよう、思考量はモデル能力情報の既定値へ戻す。
+      thinkingLevel: capabilitiesFor(
+        currentProvider,
+        defaultModel,
+      ).defaultThinkingLevel,
     );
     final defaults = AppSettings.defaults().copyWith(
       llm: llmDefaults,
@@ -256,16 +261,13 @@ class SettingsController extends ChangeNotifier {
   }
 
   /// [candidateApiKey] の有効性を、保存前でも軽量な API 呼び出しで検証する。
+  ///
+  /// アダプター設定の組み立ては `LlmSettings.toAdapterConfig()` へ集約する
+  /// (`docs/specs/010-additional-llm-providers.md` §7.3)。
   Future<bool> testApiKey(LlmProvider provider, String candidateApiKey) {
     final adapter = _adapterFactory.create(
       provider,
-      LlmAdapterConfig(
-        apiKey: candidateApiKey,
-        model: _settings.llm.effectiveModel,
-        temperature: _settings.llm.temperature,
-        maxRetries: _settings.llm.maxRetries,
-        thinkingLevel: _settings.llm.thinkingLevel,
-      ),
+      _settings.llm.toAdapterConfig(apiKey: candidateApiKey),
     );
     return adapter.validateApiKey(candidateApiKey);
   }
@@ -274,9 +276,12 @@ class SettingsController extends ChangeNotifier {
     return SettingsValidator.validateTemperature(s.temperature) ??
         SettingsValidator.validateMaxRetries(s.maxRetries) ??
         SettingsValidator.validateCustomModel(s.model, s.customModel) ??
+        SettingsValidator.validateQwenBaseUrl(s.qwenBaseUrl) ??
+        // UI(ThinkingLevelSelector)と同じく実効モデル名で能力情報を引き、
+        // 検証と表示の判断が食い違わないようにする(010 AC-07)。
         SettingsValidator.validateThinkingLevel(
           s.provider,
-          s.model,
+          s.effectiveModel,
           s.thinkingLevel,
         );
   }

@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
+import 'package:villager_translator/domain/llm/default_prompts.dart';
+import 'package:villager_translator/domain/llm/llm_adapter.dart';
+import 'package:villager_translator/domain/llm/llm_adapter_config.dart';
 import 'package:villager_translator/domain/llm/llm_provider.dart';
 import 'package:villager_translator/domain/llm/thinking_level.dart';
 import 'package:villager_translator/features/settings/settings_controller.dart';
 import 'package:villager_translator/features/settings/settings_page.dart';
+import 'package:villager_translator/infrastructure/llm/llm_adapter_factory.dart';
 
 import '../../test_support/in_memory_api_key_store.dart';
 import '../../test_support/in_memory_settings_repository.dart';
@@ -450,4 +454,168 @@ void main() {
     );
     expect(apiKeyFieldText.controller?.text, 'secret-key');
   });
+
+  testWidgets('モデルに応じて思考量の選択肢が切り替わる (010 AC-06)', (tester) async {
+    final controller = await pumpSettingsPage(tester);
+
+    // OpenAI 既定(gpt-5.6-luna)は OFF / 低 / 中 / 高。最大は提示しない。
+    await tester.ensureVisible(find.byKey(const Key('thinkingLevelSelector')));
+    await tester.tap(find.byKey(const Key('thinkingLevelSelector')));
+    await tester.pumpAndSettle();
+    expect(find.text('OFF'), findsWidgets);
+    expect(find.text('最大'), findsNothing);
+    expect(find.text('ON'), findsNothing);
+    await tester.tap(find.text('高').last);
+    await tester.pumpAndSettle();
+
+    // DeepSeek は OFF / 高 / 最大。低・中は提示しない。
+    await controller.setProvider(LlmProvider.deepseek);
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byKey(const Key('thinkingLevelSelector')));
+    await tester.tap(find.byKey(const Key('thinkingLevelSelector')));
+    await tester.pumpAndSettle();
+    expect(find.text('最大'), findsWidgets);
+    expect(find.text('低'), findsNothing);
+    expect(find.text('中'), findsNothing);
+    await tester.tap(find.text('最大').last);
+    await tester.pumpAndSettle();
+    expect(controller.settings.llm.thinkingLevel, ThinkingLevel.max);
+  });
+
+  testWidgets('Qwen では OFF / ON のみを提示する (010 AC-09)', (tester) async {
+    final controller = await pumpSettingsPage(tester);
+    await controller.setProvider(LlmProvider.qwen);
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.byKey(const Key('thinkingLevelSelector')));
+    await tester.tap(find.byKey(const Key('thinkingLevelSelector')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('ON'), findsWidgets);
+    expect(find.text('高'), findsNothing);
+    await tester.tap(find.text('ON').last);
+    await tester.pumpAndSettle();
+
+    expect(controller.settings.llm.thinkingLevel, ThinkingLevel.on);
+  });
+
+  testWidgets('Gemini 3.7 Flash では OFF を提示せず既定は中 (010 AC-10)', (tester) async {
+    final controller = await pumpSettingsPage(tester);
+    await controller.setProvider(LlmProvider.gemini);
+    await tester.pumpAndSettle();
+
+    expect(controller.settings.llm.model, 'gemini-3.7-flash');
+    expect(controller.settings.llm.thinkingLevel, ThinkingLevel.medium);
+
+    await tester.ensureVisible(find.byKey(const Key('thinkingLevelSelector')));
+    await tester.tap(find.byKey(const Key('thinkingLevelSelector')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('OFF'), findsNothing);
+    expect(find.text('中'), findsWidgets);
+  });
+
+  testWidgets('Qwen ベース URL 欄は Qwen 選択時のみ表示される (010 AC-15)', (tester) async {
+    final controller = await pumpSettingsPage(tester);
+
+    expect(find.byKey(const Key('qwenBaseUrlField')), findsNothing);
+
+    await controller.setProvider(LlmProvider.qwen);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('qwenBaseUrlField')), findsOneWidget);
+
+    await controller.setProvider(LlmProvider.openai);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('qwenBaseUrlField')), findsNothing);
+  });
+
+  testWidgets('Qwen ベース URL に不正な値を入力すると検証エラーを表示する (010 AC-15)', (tester) async {
+    final controller = await pumpSettingsPage(tester);
+    await controller.setProvider(LlmProvider.qwen);
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.byKey(const Key('qwenBaseUrlField')));
+    await tester.enterText(
+      find.byKey(const Key('qwenBaseUrlField')),
+      'not a url',
+    );
+    FocusManager.instance.primaryFocus?.unfocus();
+    await tester.pump();
+
+    expect(
+      find.textContaining('http:// または https:// で始まる URL'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('Qwen ベース URL の正しい入力はドラフトへ反映される (010 AC-15)', (tester) async {
+    final controller = await pumpSettingsPage(tester);
+    await controller.setProvider(LlmProvider.qwen);
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.byKey(const Key('qwenBaseUrlField')));
+    await tester.enterText(
+      find.byKey(const Key('qwenBaseUrlField')),
+      'https://example.test/v1',
+    );
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pumpAndSettle();
+
+    expect(controller.settings.llm.qwenBaseUrl, 'https://example.test/v1');
+  });
+
+  testWidgets('接続確認の成功メッセージは全プロバイダーで統一される (010 AC-16)', (tester) async {
+    for (final provider in LlmProvider.values) {
+      final controller = SettingsController(
+        repository: InMemorySettingsRepository(),
+        apiKeyStore: InMemoryApiKeyStore(),
+        adapterFactory: _AlwaysValidAdapterFactory(),
+      );
+      await controller.load();
+      await controller.setProvider(provider);
+
+      await tester.pumpWidget(
+        ChangeNotifierProvider<SettingsController>.value(
+          value: controller,
+          child: const MaterialApp(home: SettingsPage()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.ensureVisible(find.byKey(const Key('apiKeyTestButton')));
+      await tester.tap(find.byKey(const Key('apiKeyTestButton')));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('API接続に成功しました。'),
+        findsOneWidget,
+        reason: '${provider.id} の成功メッセージが統一されていない',
+      );
+    }
+  });
+}
+
+/// 接続確認を常に成功させるテスト用ファクトリー。
+class _AlwaysValidAdapterFactory implements LlmAdapterFactory {
+  @override
+  LlmAdapter create(LlmProvider provider, LlmAdapterConfig config) =>
+      _AlwaysValidAdapter(provider);
+}
+
+class _AlwaysValidAdapter implements LlmAdapter {
+  _AlwaysValidAdapter(this.provider);
+
+  @override
+  final LlmProvider provider;
+
+  @override
+  Future<Map<String, String>> translate({
+    required Map<String, String> content,
+    required String targetLanguage,
+    String systemPrompt = kDefaultSystemPrompt,
+    String userPromptTemplate = kDefaultUserPrompt,
+  }) async => content;
+
+  @override
+  Future<bool> validateApiKey(String apiKey) async => true;
 }

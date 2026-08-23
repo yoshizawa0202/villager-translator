@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
+import 'package:villager_translator/domain/llm/llm_provider.dart';
 import 'package:villager_translator/infrastructure/common/session_logger.dart';
 import 'package:villager_translator/infrastructure/common/session_paths.dart';
 
@@ -63,36 +64,48 @@ void main() {
     expect(entry.isMilestone, isTrue);
   });
 
-  test('applicationSupportDirectory を指定すると isMilestone に関わらず全ログをアプリケーションログへ永続化する', () async {
-    final appDir = await Directory.systemTemp.createTemp(
-      'session_logger_app_test_',
-    );
-    addTearDown(() async {
-      if (await appDir.exists()) {
-        await appDir.delete(recursive: true);
-      }
-    });
+  test(
+    'applicationSupportDirectory を指定すると isMilestone に関わらず全ログをアプリケーションログへ永続化する',
+    () async {
+      final appDir = await Directory.systemTemp.createTemp(
+        'session_logger_app_test_',
+      );
+      addTearDown(() async {
+        if (await appDir.exists()) {
+          await appDir.delete(recursive: true);
+        }
+      });
 
-    final logger = SessionLogger(applicationSupportDirectory: appDir);
-    const sessionId = '2026-08-04T12-00-00';
+      final logger = SessionLogger(applicationSupportDirectory: appDir);
+      const sessionId = '2026-08-04T12-00-00';
 
-    await logger.beginSession(profileDirectory: tempDir, sessionId: sessionId);
-    logger.log(LogLevel.info, 'translate', '翻訳開始', isMilestone: true);
-    logger.log(LogLevel.debug, 'translate.chunk', 'チャンク詳細');
-    await logger.endSession();
+      await logger.beginSession(
+        profileDirectory: tempDir,
+        sessionId: sessionId,
+      );
+      logger.log(LogLevel.info, 'translate', '翻訳開始', isMilestone: true);
+      logger.log(LogLevel.debug, 'translate.chunk', 'チャンク詳細');
+      await logger.endSession();
 
-    final appLogFile = File(
-      p.joinAll([appDir.path, 'logs', 'localizer', sessionId, 'session.log']),
-    );
-    final appLines = await appLogFile.readAsLines();
-    expect(appLines.length, 2);
+      final appLogFile = File(
+        p.joinAll([appDir.path, 'logs', 'localizer', sessionId, 'session.log']),
+      );
+      final appLines = await appLogFile.readAsLines();
+      expect(appLines.length, 2);
 
-    final profileLogFile = File(
-      p.joinAll([tempDir.path, 'logs', 'localizer', sessionId, 'session.log']),
-    );
-    final profileLines = await profileLogFile.readAsLines();
-    expect(profileLines.length, 1);
-  });
+      final profileLogFile = File(
+        p.joinAll([
+          tempDir.path,
+          'logs',
+          'localizer',
+          sessionId,
+          'session.log',
+        ]),
+      );
+      final profileLines = await profileLogFile.readAsLines();
+      expect(profileLines.length, 1);
+    },
+  );
 
   test('beginSession 前のログはメモリ上のみでファイルへ永続化されない', () async {
     final logger = SessionLogger();
@@ -112,5 +125,72 @@ void main() {
 
     final paths = SessionPaths(profileDirectory: tempDir, sessionId: sessionId);
     expect(await paths.logFile.exists(), isTrue);
+  });
+
+  group('logTranslationStart (010 AC-18)', () {
+    test('開始行にプロバイダー ID とモデル名を記録する', () {
+      final logger = SessionLogger();
+
+      logger.logTranslationStart(
+        itemCount: 3,
+        targetLanguageId: 'ja_jp',
+        provider: LlmProvider.deepseek,
+        model: 'deepseek-v4-pro',
+      );
+
+      final entry = logger.entries.single;
+      expect(entry.level, LogLevel.info);
+      expect(entry.category, 'translate');
+      expect(entry.isMilestone, isTrue);
+      expect(entry.message, contains('プロバイダー deepseek'));
+      expect(entry.message, contains('モデル deepseek-v4-pro'));
+      expect(entry.message, contains('対象 3 件'));
+      expect(entry.message, contains('言語 ja_jp'));
+    });
+
+    test('開始行を含むセッションログへ API キーを記録しない', () async {
+      final logger = SessionLogger();
+      const sessionId = '2026-08-22T10-00-00';
+      await logger.beginSession(
+        profileDirectory: tempDir,
+        sessionId: sessionId,
+      );
+
+      logger.logTranslationStart(
+        itemCount: 1,
+        targetLanguageId: 'ja_jp',
+        provider: LlmProvider.qwen,
+        model: 'qwen3.8-max',
+      );
+      await logger.endSession();
+
+      final logFile = SessionPaths(
+        profileDirectory: tempDir,
+        sessionId: sessionId,
+      ).logFile;
+      final contents = await logFile.readAsString();
+
+      expect(contents, contains('プロバイダー qwen'));
+      expect(contents, contains('モデル qwen3.8-max'));
+      expect(contents.contains('api'), isFalse);
+      expect(contents.contains('Authorization'), isFalse);
+    });
+
+    test('全プロバイダーの ID を記録できる', () {
+      for (final provider in LlmProvider.values) {
+        final logger = SessionLogger();
+        logger.logTranslationStart(
+          itemCount: 1,
+          targetLanguageId: 'ja_jp',
+          provider: provider,
+          model: 'model-x',
+        );
+
+        expect(
+          logger.entries.single.message,
+          contains('プロバイダー ${provider.id}'),
+        );
+      }
+    });
   });
 }

@@ -90,40 +90,52 @@ void main() {
     });
 
     final adapter = AnthropicAdapter(config, client: client);
-    await adapter.translate(content: {'greeting': 'Hello'}, targetLanguage: 'ja');
+    await adapter.translate(
+      content: {'greeting': 'Hello'},
+      targetLanguage: 'ja',
+    );
 
     expect(capturedBody!.containsKey('thinking'), isFalse);
   });
 
-  test('thinkingLevel が high の場合 thinking.budget_tokens を max_tokens 未満で送信する', () async {
-    Map<String, dynamic>? capturedBody;
-    final client = MockClient((request) async {
-      capturedBody = jsonDecode(request.body) as Map<String, dynamic>;
-      return http.Response(
-        jsonEncode({
-          'content': [
-            {'type': 'text', 'text': 'greeting: こんにちは'},
-          ],
-        }),
-        200,
-        headers: {'content-type': 'application/json; charset=utf-8'},
+  test(
+    'thinkingLevel が high の場合 thinking.budget_tokens を max_tokens 未満で送信する',
+    () async {
+      Map<String, dynamic>? capturedBody;
+      final client = MockClient((request) async {
+        capturedBody = jsonDecode(request.body) as Map<String, dynamic>;
+        return http.Response(
+          jsonEncode({
+            'content': [
+              {'type': 'text', 'text': 'greeting: こんにちは'},
+            ],
+          }),
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      });
+
+      final adapter = AnthropicAdapter(
+        const LlmAdapterConfig(
+          apiKey: 'test-key',
+          model: 'claude-3-5-haiku-20241022',
+          temperature: 0.5,
+          maxRetries: 3,
+          thinkingLevel: ThinkingLevel.high,
+        ),
+        client: client,
       );
-    });
+      await adapter.translate(
+        content: {'greeting': 'Hello'},
+        targetLanguage: 'ja',
+      );
 
-    final adapter = AnthropicAdapter(
-      const LlmAdapterConfig(
-        apiKey: 'test-key',
-        model: 'claude-3-5-haiku-20241022',
-        temperature: 0.5,
-        maxRetries: 3,
-        thinkingLevel: ThinkingLevel.high,
-      ),
-      client: client,
-    );
-    await adapter.translate(content: {'greeting': 'Hello'}, targetLanguage: 'ja');
-
-    final thinking = capturedBody!['thinking'] as Map<String, dynamic>;
-    expect(thinking['type'], 'enabled');
-    expect(thinking['budget_tokens'], lessThan(AnthropicAdapter.maxOutputTokens));
-  });
+      final thinking = capturedBody!['thinking'] as Map<String, dynamic>;
+      expect(thinking['type'], 'enabled');
+      expect(
+        thinking['budget_tokens'],
+        lessThan(AnthropicAdapter.maxOutputTokens),
+      );
+    },
+  );
 }

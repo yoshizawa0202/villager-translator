@@ -137,7 +137,10 @@ void main() {
     });
 
     final adapter = OpenAiAdapter(config, client: client);
-    await adapter.translate(content: {'greeting': 'Hello'}, targetLanguage: 'ja');
+    await adapter.translate(
+      content: {'greeting': 'Hello'},
+      targetLanguage: 'ja',
+    );
 
     expect(capturedBody!.containsKey('reasoning_effort'), isFalse);
   });
@@ -169,7 +172,10 @@ void main() {
       ),
       client: client,
     );
-    await adapter.translate(content: {'greeting': 'Hello'}, targetLanguage: 'ja');
+    await adapter.translate(
+      content: {'greeting': 'Hello'},
+      targetLanguage: 'ja',
+    );
 
     expect(capturedBody!['reasoning_effort'], 'high');
   });

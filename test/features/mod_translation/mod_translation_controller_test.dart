@@ -39,9 +39,7 @@ void main() {
     profileDir = await Directory.systemTemp.createTemp(
       'mod_controller_profile_test_',
     );
-    appDir = await Directory.systemTemp.createTemp(
-      'mod_controller_app_test_',
-    );
+    appDir = await Directory.systemTemp.createTemp('mod_controller_app_test_');
   });
 
   tearDown(() async {
@@ -112,10 +110,7 @@ void main() {
         profileEntries.any((e) => e.category == 'translate.chunk'),
         isFalse,
       );
-      expect(
-        profileEntries.any((e) => e.category == 'translate.item'),
-        isTrue,
-      );
+      expect(profileEntries.any((e) => e.category == 'translate.item'), isTrue);
 
       final appLogFile = File(
         p.joinAll([
