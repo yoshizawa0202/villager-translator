@@ -95,6 +95,7 @@ class ModTranslationOrchestrator {
     OverallProgressCallback? onOverallProgress,
     ItemChunkResultCallback? onChunkResult,
     CurrentItemCallback? onItemStarted,
+    int packFormat = kResourcePackFormat,
   }) async {
     final adapter = _adapterFactory.create(
       settings.llm.provider,
@@ -167,6 +168,7 @@ class ModTranslationOrchestrator {
       outputs: translationResult.outputs,
       targetLanguageId: targetLanguageId,
       packDescription: translation.resourcePackName,
+      packFormat: packFormat,
     );
 
     final packDirectory = await writeResourcePack(

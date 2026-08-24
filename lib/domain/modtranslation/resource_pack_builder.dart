@@ -6,10 +6,18 @@ import 'mod_translation_service.dart';
 /// `pack.mcmeta` の `pack_format`(feature-spec.md §6.2)。
 const int kResourcePackFormat = 9;
 
-/// `pack.mcmeta`(format 9)の内容を生成する。
-String buildPackMcmeta({String description = 'Villager Translator'}) {
+/// `pack.mcmeta` の内容を生成する。
+///
+/// [packFormat] を省略した場合は現行の既定値 [kResourcePackFormat] を使う。
+/// インスタンス一括翻訳のように Minecraft バージョンが分かる経路だけが判定した
+/// 値を渡し、判定できない経路は従来どおりの値を維持する
+/// (012-instance-batch-translation.md §11、AC-15)。
+String buildPackMcmeta({
+  String description = 'Villager Translator',
+  int packFormat = kResourcePackFormat,
+}) {
   final json = {
-    'pack': {'pack_format': kResourcePackFormat, 'description': description},
+    'pack': {'pack_format': packFormat, 'description': description},
   };
   return const JsonEncoder.withIndent('  ').convert(json);
 }
@@ -24,9 +32,13 @@ Map<String, String> buildResourcePackFiles({
   required List<ModTranslationOutput> outputs,
   required String targetLanguageId,
   String packDescription = 'Villager Translator',
+  int packFormat = kResourcePackFormat,
 }) {
   final files = <String, String>{
-    'pack.mcmeta': buildPackMcmeta(description: packDescription),
+    'pack.mcmeta': buildPackMcmeta(
+      description: packDescription,
+      packFormat: packFormat,
+    ),
   };
 
   for (final output in outputs) {
