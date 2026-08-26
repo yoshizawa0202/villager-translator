@@ -9,6 +9,7 @@ const String kDefaultSystemPrompt =
 - Translate line by line, strictly in order
 - Ensure the number of lines before and after translation matches exactly (do not add or remove lines)
 - Output only the translation result, without any greetings or explanations
+- Keep each key unchanged and return every value as a valid JSON string literal on one physical line
 
 ## Detailed Translation Instructions
 - Treat sentences on different lines as separate, even if they seem contextually connected
@@ -16,6 +17,7 @@ const String kDefaultSystemPrompt =
 - Use appropriate phonetic transcription for proper nouns when needed
 - Preserve programming variables (e.g., %s, $1, \") and special symbols as they are
 - Maintain backslashes (\\) as they may be used as escape characters
+- Keep JSON escape sequences valid; represent embedded line breaks as \n instead of real line breaks
 - Do not edit any characters that appear to be special symbols
 - For idiomatic expressions, prioritize conveying the meaning over literal translation
 - When appropriate, adapt cultural references to be more relevant to the target language audience
