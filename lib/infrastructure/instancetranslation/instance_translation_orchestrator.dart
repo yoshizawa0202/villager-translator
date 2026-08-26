@@ -23,6 +23,12 @@ typedef CategoryProgressCallback =
 typedef CategoryStartedCallback =
     void Function(InstanceTranslationCategory category);
 
+/// 統合サマリーの書き出しに失敗したときの通知(§8、AC-09)。
+///
+/// 書き出しの失敗は、既に完了したカテゴリの結果を失わせる理由にはならないため、
+/// 例外を伝播させる代わりにこのコールバックで呼び出し元へ知らせる。
+typedef SummaryWriteErrorCallback = void Function(Object error);
+
 /// インスタンス一括翻訳を統括する上位オーケストレーター(§1、§7)。
 ///
 /// 新しい翻訳ロジック(チャンク分割、応答検証、リトライ、出力生成、バックアップ)は
@@ -61,6 +67,7 @@ class InstanceTranslationOrchestrator {
     SingleFileProgressCallback? onSingleFileProgress,
     ItemChunkResultCallback? onChunkResult,
     CurrentItemCallback? onItemStarted,
+    SummaryWriteErrorCallback? onSummaryWriteError,
   }) async {
     final profileDirectory = Directory(plan.instance.rootPath);
     final effectiveSettings = _applyPlanOverrides(settings, plan);
@@ -130,10 +137,17 @@ class InstanceTranslationOrchestrator {
       createdAt: DateTime.now(),
       items: summaryItems,
     );
-    await _summaryWriter.write(
-      profileDirectory: profileDirectory,
-      summary: summary,
-    );
+    // 書き出しに失敗しても、ここまでに完了したカテゴリの結果は返す。例外を
+    // 伝播させると成功済みの結果まで呼び出し元へ届かず、「失敗した項目を再試行」
+    // も使えなくなり、翻訳をすべてやり直すことになるため(§8、AC-09)。
+    try {
+      await _summaryWriter.write(
+        profileDirectory: profileDirectory,
+        summary: summary,
+      );
+    } catch (e) {
+      onSummaryWriteError?.call(e);
+    }
 
     return InstanceTranslationOutcome(
       sessionId: sessionId,

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -81,10 +82,49 @@ class InstanceStore {
     }
   }
 
-  Future<void> save(InstanceStoreData data) async {
+  /// 手動パスの追加・最近使用インスタンスの記録は短時間に連続して起こり得る
+  /// (例: 追加 → 再検出 → 記録)。同じ一時ファイルへ複数の呼び出しが同時に
+  /// アクセスするとリネームが競合するため、呼び出しを直列化する
+  /// ([SettingsRepository] と同方針)。
+  static Future<void> _saveLock = Future<void>.value();
+
+  /// 保存する。一時ファイルへ書き込んでからリネームすることで、書き込み途中の
+  /// プロセス終了による `instances.json` の破損を防ぐ(原子的書き込み)。
+  ///
+  /// Windows では宛先が既に存在すると `rename` が失敗するため、既存ファイルを
+  /// 一旦バックアップへ退避してからリネームし、成功後にバックアップを削除する
+  /// ([SettingsRepository] と同じ手順)。
+  Future<void> save(InstanceStoreData data) {
+    final previous = _saveLock;
+    final completer = Completer<void>();
+    _saveLock = completer.future;
+    return previous.then((_) async {
+      try {
+        await _write(data);
+      } finally {
+        completer.complete();
+      }
+    });
+  }
+
+  Future<void> _write(InstanceStoreData data) async {
     await file.parent.create(recursive: true);
-    await file.writeAsString(
+
+    final tempFile = File('${file.path}.tmp');
+    final backupFile = File('${file.path}.bak');
+    await tempFile.writeAsString(
       const JsonEncoder.withIndent('  ').convert(data.toJson()),
     );
+
+    if (await backupFile.exists()) {
+      await backupFile.delete();
+    }
+    if (await file.exists()) {
+      await file.rename(backupFile.path);
+    }
+    await tempFile.rename(file.path);
+    if (await backupFile.exists()) {
+      await backupFile.delete();
+    }
   }
 }

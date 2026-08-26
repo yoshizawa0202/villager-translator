@@ -308,6 +308,14 @@ class InstanceTranslationController extends ChangeNotifier {
                 '${chunkResult.error != null ? ': ${chunkResult.error}' : ''}',
           );
         },
+        onSummaryWriteError: (error) {
+          _sessionLogger.log(
+            LogLevel.error,
+            'translate.summary',
+            '統合サマリーの書き出しに失敗しました(翻訳結果は保持されます): $error',
+            isMilestone: true,
+          );
+        },
       );
 
       _lastOutcome = outcome;

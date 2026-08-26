@@ -68,4 +68,44 @@ void main() {
     expect(await File(p.join(tempDir.path, 'instances.json')).exists(), isTrue);
     expect(await File(p.join(tempDir.path, 'settings.json')).exists(), isFalse);
   });
+
+  test('save を同時に複数回呼び出しても例外にならず最終値が復元できる(011 AC-16)', () async {
+    final store = InstanceStore.forApplicationSupportDirectory(tempDir);
+
+    await Future.wait([
+      for (var i = 0; i < 10; i++)
+        store.save(InstanceStoreData(manualPaths: ['D:/path$i'])),
+    ]);
+
+    final loaded = await store.load();
+    expect(loaded.manualPaths.single, 'D:/path9');
+  });
+
+  test('保存後に一時ファイル・バックアップファイルが残らない(011 §15.5 原子的書き込み)', () async {
+    final store = InstanceStore.forApplicationSupportDirectory(tempDir);
+
+    await store.save(const InstanceStoreData(manualPaths: ['D:/a']));
+    await store.save(const InstanceStoreData(manualPaths: ['D:/b']));
+
+    final remaining =
+        tempDir
+            .listSync()
+            .map((e) => p.basename(e.path))
+            .where((name) => name.startsWith('instances.json'))
+            .toList()
+          ..sort();
+    expect(remaining, ['instances.json']);
+    expect((await store.load()).manualPaths.single, 'D:/b');
+  });
+
+  test('既存ファイルがある状態で保存しても内容が置き換わる(011 §15.5)', () async {
+    final file = File(p.join(tempDir.path, 'instances.json'));
+    await file.writeAsString('{"manualPaths":["D:/old"]}');
+
+    await InstanceStore(
+      file,
+    ).save(const InstanceStoreData(manualPaths: ['D:/new']));
+
+    expect((await InstanceStore(file).load()).manualPaths.single, 'D:/new');
+  });
 }

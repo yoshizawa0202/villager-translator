@@ -4,12 +4,14 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:villager_translator/domain/common/cancellation_token.dart';
 import 'package:villager_translator/domain/common/translation_progress.dart';
+import 'package:villager_translator/domain/common/translation_summary.dart';
 import 'package:villager_translator/domain/instancetranslation/instance_translation_mode.dart';
 import 'package:villager_translator/domain/instancetranslation/instance_translation_outcome.dart';
 import 'package:villager_translator/domain/llm/llm_provider.dart';
 import 'package:villager_translator/domain/settings/app_settings.dart';
 import 'package:villager_translator/domain/settings/existing_translation_policy.dart';
 import 'package:villager_translator/infrastructure/common/session_paths.dart';
+import 'package:villager_translator/infrastructure/common/translation_summary_writer.dart';
 import 'package:villager_translator/infrastructure/instancetranslation/instance_translation_orchestrator.dart';
 
 import '../../test_support/instance_translation_fixtures.dart';
@@ -358,4 +360,57 @@ void main() {
     expect(mods.skippedIds, ['c.jar']);
     expect(mods.outputLocations.single, contains('resourcepacks'));
   });
+
+  test('統合サマリーの書き出しに失敗しても完了済みカテゴリの結果は返る(012 AC-09)', () async {
+    final errors = <Object>[];
+
+    final outcome =
+        await InstanceTranslationOrchestrator(
+          modOrchestrator: RecordingModOrchestrator(
+            recorder,
+            translatedPaths: ['a.jar'],
+          ),
+          questOrchestrator: RecordingQuestOrchestrator(
+            recorder,
+            translatedPaths: ['q.json'],
+          ),
+          patchouliOrchestrator: RecordingPatchouliOrchestrator(recorder),
+          summaryWriter: const _FailingSummaryWriter(),
+        ).translate(
+          plan: buildTestPlan(
+            rootPath: tempDir.path,
+            mods: [buildModEntry(id: 'a')],
+            quests: [buildQuestEntry(relativePath: 'q.json')],
+            translateGuidebooks: false,
+          ),
+          settings: AppSettings.defaults(),
+          apiKey: 'key',
+          sessionId: 'session-1',
+          onSummaryWriteError: errors.add,
+        );
+
+    // 例外が伝播せず、3 カテゴリの結果がそのまま返る。
+    expect(outcome.sessionId, 'session-1');
+    expect(outcome.successCount, 2);
+    expect(outcome.outcomeFor(InstanceTranslationCategory.mods)!.successIds, [
+      'a.jar',
+    ]);
+    expect(outcome.summary.items, isNotEmpty);
+
+    // 失敗は呼び出し元へ通知される(ログに残せる)。
+    expect(errors.single, isA<FileSystemException>());
+  });
+}
+
+/// 統合サマリーの書き出しが失敗する状況を再現する(012 AC-09)。
+class _FailingSummaryWriter extends TranslationSummaryWriter {
+  const _FailingSummaryWriter();
+
+  @override
+  Future<File> write({
+    required Directory profileDirectory,
+    required TranslationSummary summary,
+  }) async {
+    throw const FileSystemException('書き出しに失敗しました');
+  }
 }
