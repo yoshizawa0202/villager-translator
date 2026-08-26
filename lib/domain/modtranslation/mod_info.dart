@@ -3,10 +3,13 @@ enum ModInfoSource {
   /// `fabric.mod.json`(最優先)。
   fabricModJson,
 
-  /// `META-INF/mods.toml`(Forge/NeoForge)。
+  /// `META-INF/mods.toml`(Forgeおよび旧NeoForge)。
   forgeModsToml,
 
-  /// `META-INF/MANIFEST.MF`(最終手段、ID は `unknown`)。
+  /// `META-INF/neoforge.mods.toml`(NeoForge 1.20.5以降)。
+  neoForgeModsToml,
+
+  /// `META-INF/MANIFEST.MF`(最終手段、ID は `unknown` のためスキャン対象外)。
   manifest,
 }
 

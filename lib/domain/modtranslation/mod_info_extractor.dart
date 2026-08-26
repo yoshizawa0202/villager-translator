@@ -28,12 +28,16 @@ ModInfo? extractModInfoFromFabricJson(String content) {
   }
 }
 
-/// `META-INF/mods.toml`(Forge/NeoForge)の内容から MOD 情報を抽出する。
+/// `META-INF/mods.toml` / `META-INF/neoforge.mods.toml` の内容から
+/// MOD 情報を抽出する。
 ///
 /// フル TOML パーサーは用いず、最初の `[[mods]]` テーブルに含まれる
 /// `modId` `displayName` `version` の単純なキー = 値行のみを読み取る
 /// (本アプリが必要とするのはこの3項目のみのため)。
-ModInfo? extractModInfoFromModsToml(String content) {
+ModInfo? extractModInfoFromModsToml(
+  String content, {
+  ModInfoSource source = ModInfoSource.forgeModsToml,
+}) {
   final lines = _stripBom(content).split('\n');
 
   var inModsTable = false;
@@ -68,7 +72,7 @@ ModInfo? extractModInfoFromModsToml(String content) {
     id: modId,
     name: displayName != null && displayName.isNotEmpty ? displayName : modId,
     version: version != null && version.isNotEmpty ? version : 'unknown',
-    source: ModInfoSource.forgeModsToml,
+    source: source,
   );
 }
 
@@ -81,9 +85,8 @@ String? _tomlStringValue(String line, String key) {
 
 /// `META-INF/MANIFEST.MF`(最終手段)から MOD 情報を作る。
 ///
-/// feature-spec.md §6.1 の通り、MANIFEST.MF しか情報源がない場合は MOD ID を
-/// `unknown` とする。この情報源に到達できたということは MOD 自体は存在する
-/// ため(スキップにはしない)、常に値を返す。
+/// MANIFEST.MF しか情報源がない場合は MOD ID を `unknown` とする。
+/// 呼び出し側はリソースパック名前空間を確定できない対象としてスキップする。
 ModInfo extractModInfoFromManifest(String content) {
   return const ModInfo(
     id: 'unknown',
@@ -93,17 +96,26 @@ ModInfo extractModInfoFromManifest(String content) {
   );
 }
 
-/// `fabric.mod.json` → `mods.toml` → `MANIFEST.MF` の優先順で MOD 情報を解決する。
+/// `fabric.mod.json` → `neoforge.mods.toml` → `mods.toml` →
+/// `MANIFEST.MF` の優先順で MOD 情報を解決する。
 ///
 /// いずれの情報源も存在しない(すべて `null`)場合は `null` を返し、
 /// 呼び出し側でスキップ扱いにする。
 ModInfo? resolveModInfo({
   String? fabricModJson,
+  String? neoForgeModsToml,
   String? modsToml,
   String? manifestMf,
 }) {
   if (fabricModJson != null) {
     final info = extractModInfoFromFabricJson(fabricModJson);
+    if (info != null) return info;
+  }
+  if (neoForgeModsToml != null) {
+    final info = extractModInfoFromModsToml(
+      neoForgeModsToml,
+      source: ModInfoSource.neoForgeModsToml,
+    );
     if (info != null) return info;
   }
   if (modsToml != null) {

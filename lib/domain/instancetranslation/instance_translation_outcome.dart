@@ -36,7 +36,8 @@ class InstanceTranslationCategoryOutcome {
 
   final InstanceTranslationCategory category;
 
-  /// 出力へ反映された対象の識別子(MOD ID / クエスト相対パス / `modId:bookId`)。
+  /// 出力へ反映された対象の識別子(MOD JAR相対パス / クエスト相対パス /
+  /// `modId:bookId`)。
   final List<String> successIds;
 
   /// 反映されなかった対象の識別子([buildRetryPlan] の絞り込みに使う)。
@@ -119,7 +120,7 @@ InstanceTranslationPlan buildRetryPlan(
       const <String>[];
 
   final mods = plan.mods
-      .where((e) => failedMods.contains(e.modInfo.id))
+      .where((e) => failedMods.contains(e.jarRelativePath))
       .toList();
   final quests = plan.quests
       .where((e) => failedQuests.contains(e.relativePath))

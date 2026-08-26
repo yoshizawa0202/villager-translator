@@ -96,6 +96,7 @@ void main() {
       final files = buildResourcePackFiles(
         outputs: const [
           ModTranslationOutput(
+            jarRelativePath: 'moda.jar',
             modId: 'moda',
             format: LangFormat.json,
             entries: {'a': 'A'},

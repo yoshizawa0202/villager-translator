@@ -61,17 +61,17 @@ TranslationSummaryItem summaryItem({
 class RecordingModOrchestrator extends ModTranslationOrchestrator {
   RecordingModOrchestrator(
     this.recorder, {
-    this.translatedIds = const [],
-    this.skippedIds = const [],
-    this.failedIds = const [],
+    this.translatedPaths = const [],
+    this.skippedPaths = const [],
+    this.failedPaths = const [],
     this.error,
     this.onCall,
   });
 
   final OrchestratorRecorder recorder;
-  final List<String> translatedIds;
-  final List<String> skippedIds;
-  final List<String> failedIds;
+  final List<String> translatedPaths;
+  final List<String> skippedPaths;
+  final List<String> failedPaths;
   final Object? error;
   final void Function()? onCall;
 
@@ -106,24 +106,41 @@ class RecordingModOrchestrator extends ModTranslationOrchestrator {
 
     onOverallProgress?.call(
       OverallProgress(
-        completedItems: translatedIds.length,
+        completedItems: translatedPaths.length,
         totalItems: selectedEntries.length,
       ),
     );
 
+    ModTranslationTarget targetFor(String jarRelativePath) {
+      final entry = selectedEntries.firstWhere(
+        (entry) => entry.jarRelativePath == jarRelativePath,
+      );
+      return ModTranslationTarget(
+        jarRelativePath: jarRelativePath,
+        modId: entry.modInfo.id,
+      );
+    }
+
     return ModTranslateAndPackResult(
       translationResult: ModTranslationResult(
         outputs: const [],
-        translatedModIds: [...translatedIds, ...failedIds],
-        skippedModIds: skippedIds,
+        translatedTargets: [
+          for (final path in [...translatedPaths, ...failedPaths])
+            targetFor(path),
+        ],
+        skippedTargets: [for (final path in skippedPaths) targetFor(path)],
       ),
       packDirectory: Directory('${profileDirectory.path}/resourcepacks/pack'),
       backupDirectory: null,
       summary: _summary(sessionId, [
-        for (final id in translatedIds)
-          summaryItem(type: TranslationTargetType.mod, id: id),
-        for (final id in failedIds)
-          summaryItem(type: TranslationTargetType.mod, id: id, success: false),
+        for (final path in translatedPaths)
+          summaryItem(type: TranslationTargetType.mod, id: path),
+        for (final path in failedPaths)
+          summaryItem(
+            type: TranslationTargetType.mod,
+            id: path,
+            success: false,
+          ),
       ]),
     );
   }

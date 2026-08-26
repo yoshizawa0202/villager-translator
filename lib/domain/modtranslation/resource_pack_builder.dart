@@ -1,10 +1,57 @@
 import 'dart:convert';
 
 import '../translation/lang_codec.dart';
+import 'mod_scan_entry.dart';
 import 'mod_translation_service.dart';
 
 /// `pack.mcmeta` の `pack_format`(feature-spec.md §6.2)。
 const int kResourcePackFormat = 9;
+
+/// 2つ以上のJARが同じリソースパック内パスへ出力される場合の例外。
+class DuplicateModOutputPathException implements Exception {
+  const DuplicateModOutputPathException({
+    required this.outputPath,
+    required this.jarRelativePaths,
+  });
+
+  final String outputPath;
+  final List<String> jarRelativePaths;
+
+  @override
+  String toString() =>
+      '同じリソースパック出力先を使う MOD が複数あります: $outputPath '
+      '(${jarRelativePaths.join(', ')})';
+}
+
+String buildModLangOutputPath({
+  required String modId,
+  required String targetLanguageId,
+  required LangFormat format,
+}) => 'assets/$modId/lang/$targetLanguageId.${format.extension}';
+
+/// API 呼び出し前に、選択したJARの出力先が一意であることを検証する。
+void validateUniqueModOutputTargets({
+  required Iterable<ModScanEntry> entries,
+  required String targetLanguageId,
+}) {
+  final sourceByOutputPath = <String, String>{};
+
+  for (final entry in entries) {
+    final outputPath = buildModLangOutputPath(
+      modId: entry.modInfo.id,
+      targetLanguageId: targetLanguageId,
+      format: entry.langFormat,
+    );
+    final previous = sourceByOutputPath[outputPath];
+    if (previous != null) {
+      throw DuplicateModOutputPathException(
+        outputPath: outputPath,
+        jarRelativePaths: [previous, entry.jarRelativePath],
+      );
+    }
+    sourceByOutputPath[outputPath] = entry.jarRelativePath;
+  }
+}
 
 /// `pack.mcmeta` の内容を生成する。
 ///
@@ -40,10 +87,22 @@ Map<String, String> buildResourcePackFiles({
       packFormat: packFormat,
     ),
   };
+  final sourceByOutputPath = <String, String>{};
 
   for (final output in outputs) {
-    final path =
-        'assets/${output.modId}/lang/$targetLanguageId.${output.format.extension}';
+    final path = buildModLangOutputPath(
+      modId: output.modId,
+      targetLanguageId: targetLanguageId,
+      format: output.format,
+    );
+    final previous = sourceByOutputPath[path];
+    if (previous != null) {
+      throw DuplicateModOutputPathException(
+        outputPath: path,
+        jarRelativePaths: [previous, output.jarRelativePath],
+      );
+    }
+    sourceByOutputPath[path] = output.jarRelativePath;
     files[path] = encodeLang(output.entries, output.format);
   }
 

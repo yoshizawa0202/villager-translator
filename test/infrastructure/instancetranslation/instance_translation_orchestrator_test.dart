@@ -185,7 +185,7 @@ void main() {
     final mods = outcome.outcomeFor(InstanceTranslationCategory.mods)!;
     expect(mods.error, isA<FormatException>());
     // 例外で終わったカテゴリの対象はすべて失敗として記録する。
-    expect(mods.failedIds, ['a', 'b']);
+    expect(mods.failedIds, ['a.jar', 'b.jar']);
 
     final quests = outcome.outcomeFor(InstanceTranslationCategory.quests)!;
     expect(quests.successIds, ['q.json']);
@@ -194,7 +194,7 @@ void main() {
   test('全カテゴリ完了後に統合サマリーが 1 回書き出される(012 AC-09)', () async {
     final outcome =
         await buildOrchestrator(
-          mod: RecordingModOrchestrator(recorder, translatedIds: ['a']),
+          mod: RecordingModOrchestrator(recorder, translatedPaths: ['a.jar']),
           quest: RecordingQuestOrchestrator(
             recorder,
             translatedPaths: ['q.json'],
@@ -216,7 +216,7 @@ void main() {
         );
 
     expect(outcome.summary.items.map((i) => i.id).toList(), [
-      'a',
+      'a.jar',
       'q.json',
       'ars:notebook',
     ]);
@@ -241,7 +241,7 @@ void main() {
         await buildOrchestrator(
           mod: RecordingModOrchestrator(
             recorder,
-            translatedIds: ['a'],
+            translatedPaths: ['a.jar'],
             // MOD 処理中にキャンセルされた状況を再現する。
             onCall: token.cancel,
           ),
@@ -276,7 +276,10 @@ void main() {
     final categoryProgress = <InstanceTranslationCategory, OverallProgress>{};
 
     await buildOrchestrator(
-      mod: RecordingModOrchestrator(recorder, translatedIds: ['a', 'b']),
+      mod: RecordingModOrchestrator(
+        recorder,
+        translatedPaths: ['a.jar', 'b.jar'],
+      ),
       quest: RecordingQuestOrchestrator(recorder, translatedPaths: ['q.json']),
     ).translate(
       plan: buildTestPlan(
@@ -321,9 +324,9 @@ void main() {
         await buildOrchestrator(
           mod: RecordingModOrchestrator(
             recorder,
-            translatedIds: ['a'],
-            failedIds: ['b'],
-            skippedIds: ['c'],
+            translatedPaths: ['a.jar'],
+            failedPaths: ['b.jar'],
+            skippedPaths: ['c.jar'],
           ),
           quest: RecordingQuestOrchestrator(
             recorder,
@@ -350,9 +353,9 @@ void main() {
     expect(outcome.skippedCount, 1);
 
     final mods = outcome.outcomeFor(InstanceTranslationCategory.mods)!;
-    expect(mods.successIds, ['a']);
-    expect(mods.failedIds, ['b']);
-    expect(mods.skippedIds, ['c']);
+    expect(mods.successIds, ['a.jar']);
+    expect(mods.failedIds, ['b.jar']);
+    expect(mods.skippedIds, ['c.jar']);
     expect(mods.outputLocations.single, contains('resourcepacks'));
   });
 }

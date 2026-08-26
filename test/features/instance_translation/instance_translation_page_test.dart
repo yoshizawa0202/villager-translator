@@ -78,8 +78,8 @@ void main() {
       orchestrator: InstanceTranslationOrchestrator(
         modOrchestrator: RecordingModOrchestrator(
           recorder,
-          translatedIds: ['mod0'],
-          failedIds: ['mod1'],
+          translatedPaths: ['mod0.jar'],
+          failedPaths: ['mod1.jar'],
         ),
         questOrchestrator: RecordingQuestOrchestrator(
           recorder,

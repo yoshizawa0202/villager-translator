@@ -9,6 +9,7 @@ import 'package:villager_translator/domain/llm/llm_adapter_config.dart';
 import 'package:villager_translator/domain/llm/llm_provider.dart';
 import 'package:villager_translator/domain/settings/app_settings.dart';
 import 'package:villager_translator/domain/settings/existing_translation_policy.dart';
+import 'package:villager_translator/domain/modtranslation/resource_pack_builder.dart';
 import 'package:villager_translator/infrastructure/common/session_paths.dart';
 import 'package:villager_translator/infrastructure/llm/llm_adapter_factory.dart';
 import 'package:villager_translator/infrastructure/llm/mock_llm_adapter.dart';
@@ -20,6 +21,13 @@ class _FakeAdapterFactory implements LlmAdapterFactory {
   @override
   LlmAdapter create(LlmProvider provider, LlmAdapterConfig config) =>
       const MockLlmAdapter();
+}
+
+class _FailIfCreatedAdapterFactory implements LlmAdapterFactory {
+  @override
+  LlmAdapter create(LlmProvider provider, LlmAdapterConfig config) {
+    throw StateError('出力衝突の検出後にアダプターを生成してはいけません');
+  }
 }
 
 void main() {
@@ -131,7 +139,10 @@ void main() {
 
     // 受け入れ条件12: translation_summary.json がセッションディレクトリへ書き出される。
     expect(result.summary.sessionId, '20260803-120000');
-    expect(result.summary.items.map((i) => i.id).toSet(), {'moda', 'modb'});
+    expect(result.summary.items.map((i) => i.id).toSet(), {
+      'moda.jar',
+      'modb.jar',
+    });
     expect(result.summary.items.every((i) => i.success), isTrue);
 
     final summaryFile = SessionPaths(
@@ -250,5 +261,87 @@ void main() {
     );
 
     expect(labels, ['Mod A']);
+  });
+
+  test('NeoForge実物相当JARをスキャンしてリソースパックへ出力できる(受け入れ条件18)', () async {
+    await writeFakeJar(File(p.join(tempDir.path, 'mods', 'neomod.jar')), {
+      'META-INF/neoforge.mods.toml': '''
+modLoader="javafml"
+loaderVersion="[4,)"
+
+[[mods]]
+modId="neomod"
+version="1.0.0"
+displayName="Neo Mod"
+''',
+      'assets/neomod/lang/en_us.json': '{"item.neo": "Neo Item"}',
+    });
+
+    final orchestrator = ModTranslationOrchestrator(
+      adapterFactory: _FakeAdapterFactory(),
+    );
+    final scanResult = await orchestrator.scan(
+      profileDirectory: tempDir,
+      targetLanguageId: 'ja_jp',
+    );
+
+    expect(scanResult.entries.single.modInfo.id, 'neomod');
+
+    final result = await orchestrator.translateAndPack(
+      profileDirectory: tempDir,
+      selectedEntries: scanResult.entries,
+      targetLanguageId: 'ja_jp',
+      targetLanguageDisplayName: '日本語',
+      settings: AppSettings.defaults(),
+      apiKey: 'test-key',
+      sessionId: '20260826-120000',
+    );
+
+    final output = File(
+      p.joinAll([
+        result.packDirectory!.path,
+        'assets',
+        'neomod',
+        'lang',
+        'ja_jp.json',
+      ]),
+    );
+    expect(await output.exists(), isTrue);
+    expect(await output.readAsString(), contains('[MOCK] Neo Item'));
+    expect(result.summary.items.single.id, 'neomod.jar');
+  });
+
+  test('同じ出力先の複数JARはアダプター生成前に拒否する(受け入れ条件17)', () async {
+    for (final jarName in ['same-1.jar', 'same-2.jar']) {
+      await writeFakeJar(File(p.join(tempDir.path, 'mods', jarName)), {
+        'fabric.mod.json': '{"id": "same", "name": "Same", "version": "1.0"}',
+        'assets/same/lang/en_us.json': '{"item.same": "Same Item"}',
+      });
+    }
+
+    final scanningOrchestrator = ModTranslationOrchestrator(
+      adapterFactory: _FakeAdapterFactory(),
+    );
+    final scanResult = await scanningOrchestrator.scan(
+      profileDirectory: tempDir,
+      targetLanguageId: 'ja_jp',
+    );
+    expect(scanResult.entries, hasLength(2));
+
+    final orchestrator = ModTranslationOrchestrator(
+      adapterFactory: _FailIfCreatedAdapterFactory(),
+    );
+    await expectLater(
+      orchestrator.translateAndPack(
+        profileDirectory: tempDir,
+        selectedEntries: scanResult.entries,
+        targetLanguageId: 'ja_jp',
+        targetLanguageDisplayName: '日本語',
+        settings: AppSettings.defaults(),
+        apiKey: 'test-key',
+        sessionId: '20260826-120001',
+      ),
+      throwsA(isA<DuplicateModOutputPathException>()),
+    );
   });
 }

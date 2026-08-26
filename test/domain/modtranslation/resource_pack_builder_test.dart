@@ -18,11 +18,13 @@ void main() {
       final files = buildResourcePackFiles(
         outputs: [
           ModTranslationOutput(
+            jarRelativePath: 'moda.jar',
             modId: 'moda',
             format: LangFormat.json,
             entries: {'b': '2', 'a': '1'},
           ),
           ModTranslationOutput(
+            jarRelativePath: 'modb.jar',
             modId: 'modb',
             format: LangFormat.lang,
             entries: {'y': '2', 'x': '1'},
@@ -40,6 +42,7 @@ void main() {
       final files = buildResourcePackFiles(
         outputs: [
           ModTranslationOutput(
+            jarRelativePath: 'moda.jar',
             modId: 'moda',
             format: LangFormat.json,
             entries: {'b': '2', 'a': '1'},
@@ -56,6 +59,7 @@ void main() {
       final files = buildResourcePackFiles(
         outputs: [
           ModTranslationOutput(
+            jarRelativePath: 'modb.jar',
             modId: 'modb',
             format: LangFormat.lang,
             entries: {'y': '2', 'x': '1'},
@@ -65,6 +69,29 @@ void main() {
       );
 
       expect(files['assets/modb/lang/ja_jp.lang'], 'x=1\ny=2');
+    });
+
+    test('同じ出力先になる複数JARを無言で上書きしない(受け入れ条件17)', () {
+      expect(
+        () => buildResourcePackFiles(
+          outputs: [
+            ModTranslationOutput(
+              jarRelativePath: 'same-1.jar',
+              modId: 'same',
+              format: LangFormat.json,
+              entries: const {'a': '1'},
+            ),
+            ModTranslationOutput(
+              jarRelativePath: 'same-2.jar',
+              modId: 'same',
+              format: LangFormat.json,
+              entries: const {'b': '2'},
+            ),
+          ],
+          targetLanguageId: 'ja_jp',
+        ),
+        throwsA(isA<DuplicateModOutputPathException>()),
+      );
     });
   });
 }

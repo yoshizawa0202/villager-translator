@@ -40,9 +40,9 @@ InstanceTranslationOutcome _outcome({
 void main() {
   test('成功・失敗・スキップの件数を全カテゴリで合算する(012 §10、AC-13)', () {
     final outcome = _outcome(
-      successMods: ['a', 'b'],
-      failedMods: ['c'],
-      skippedMods: ['d', 'e', 'f'],
+      successMods: ['a.jar', 'b.jar'],
+      failedMods: ['c.jar'],
+      skippedMods: ['d.jar', 'e.jar', 'f.jar'],
       failedQuests: ['q.json'],
     );
 
@@ -72,8 +72,8 @@ void main() {
     final retry = buildRetryPlan(
       plan,
       _outcome(
-        successMods: ['a'],
-        failedMods: ['b'],
+        successMods: ['a.jar'],
+        failedMods: ['b.jar'],
         failedGuidebooks: ['malum:encyclopedia'],
       ),
     );
@@ -102,8 +102,24 @@ void main() {
       mods: [buildModEntry(id: 'a')],
     );
 
-    final retry = buildRetryPlan(plan, _outcome(successMods: ['a']));
+    final retry = buildRetryPlan(plan, _outcome(successMods: ['a.jar']));
 
     expect(retry.hasAnyTarget, isFalse);
+  });
+
+  test('同じMOD IDでも失敗したJAR相対パスだけを再試行対象にする(012 AC-13)', () {
+    final plan = buildTestPlan(
+      rootPath: 'D:/mc',
+      mods: [
+        buildModEntry(id: 'same', jarRelativePath: 'same-old.jar'),
+        buildModEntry(id: 'same', jarRelativePath: 'same-new.jar'),
+      ],
+    );
+
+    final retry = buildRetryPlan(plan, _outcome(failedMods: ['same-new.jar']));
+
+    expect(retry.mods.map((entry) => entry.jarRelativePath).toList(), [
+      'same-new.jar',
+    ]);
   });
 }

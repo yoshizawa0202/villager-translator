@@ -161,7 +161,7 @@ void main() {
       orchestrator: InstanceTranslationOrchestrator(
         modOrchestrator: RecordingModOrchestrator(
           recorder,
-          translatedIds: ['mod0', 'mod1'],
+          translatedPaths: ['mod0.jar', 'mod1.jar'],
         ),
         questOrchestrator: RecordingQuestOrchestrator(
           recorder,
@@ -187,9 +187,9 @@ void main() {
       orchestrator: InstanceTranslationOrchestrator(
         modOrchestrator: RecordingModOrchestrator(
           recorder,
-          translatedIds: ['mod0'],
-          failedIds: ['mod1'],
-          skippedIds: ['mod2'],
+          translatedPaths: ['mod0.jar'],
+          failedPaths: ['mod1.jar'],
+          skippedPaths: ['mod2.jar'],
         ),
         questOrchestrator: RecordingQuestOrchestrator(recorder),
         patchouliOrchestrator: RecordingPatchouliOrchestrator(recorder),
@@ -211,9 +211,9 @@ void main() {
       orchestrator: InstanceTranslationOrchestrator(
         modOrchestrator: RecordingModOrchestrator(
           recorder,
-          translatedIds: ['mod0'],
-          failedIds: ['mod1'],
-          skippedIds: ['mod2'],
+          translatedPaths: ['mod0.jar'],
+          failedPaths: ['mod1.jar'],
+          skippedPaths: ['mod2.jar'],
         ),
         questOrchestrator: RecordingQuestOrchestrator(recorder),
         patchouliOrchestrator: RecordingPatchouliOrchestrator(recorder),

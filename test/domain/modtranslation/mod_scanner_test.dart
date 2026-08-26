@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:villager_translator/domain/modtranslation/jar_contents.dart';
+import 'package:villager_translator/domain/modtranslation/mod_info.dart';
 import 'package:villager_translator/domain/modtranslation/mod_scan_entry.dart';
 import 'package:villager_translator/domain/modtranslation/mod_scanner.dart';
 import 'package:villager_translator/domain/translation/lang_codec.dart';
@@ -36,6 +37,29 @@ void main() {
       expect(outcome.entry!.hasExistingTranslation, isFalse);
     });
 
+    test('neoforge.mods.toml と en_us.json を含む MOD が対象一覧に追加される', () {
+      final jar = _jar({
+        'META-INF/neoforge.mods.toml': '''
+modLoader="javafml"
+[[mods]]
+modId="neomod"
+version="1.0"
+displayName="Neo Mod"
+''',
+        'assets/neomod/lang/en_us.json': '{"item.example": "Example Item"}',
+      });
+
+      final outcome = scanModJar(
+        jarRelativePath: 'neomod.jar',
+        jar: jar,
+        targetLanguageId: 'ja_jp',
+      );
+
+      expect(outcome.skip, isNull);
+      expect(outcome.entry!.modInfo.id, 'neomod');
+      expect(outcome.entry!.modInfo.source, ModInfoSource.neoForgeModsToml);
+    });
+
     test('MOD 情報を取得できない JAR はスキップされる(受け入れ条件2)', () {
       final jar = _jar({
         'assets/examplemod/lang/en_us.json': '{"item.example": "Example Item"}',
@@ -50,6 +74,22 @@ void main() {
       expect(outcome.entry, isNull);
       expect(outcome.skip, isNotNull);
       expect(outcome.skip!.reason, ModScanSkipReason.noModInfo);
+    });
+
+    test('MANIFESTしかなくMOD IDを確定できないJARは翻訳前にスキップされる', () {
+      final jar = _jar({
+        'META-INF/MANIFEST.MF': 'Manifest-Version: 1.0',
+        'assets/examplemod/lang/en_us.json': '{"item.example": "Example Item"}',
+      });
+
+      final outcome = scanModJar(
+        jarRelativePath: 'unknown.jar',
+        jar: jar,
+        targetLanguageId: 'ja_jp',
+      );
+
+      expect(outcome.entry, isNull);
+      expect(outcome.skip!.reason, ModScanSkipReason.unresolvedModId);
     });
 
     test('en_us lang ファイルを含まない MOD は対象一覧から除外される(受け入れ条件3)', () {
@@ -161,6 +201,27 @@ void main() {
       final sorted = sortModEntriesById([entryZ, entryA]);
 
       expect(sorted.map((e) => e.modInfo.id).toList(), ['amod', 'zmod']);
+    });
+
+    test('同じMOD IDではJAR相対パス順にソートする', () {
+      final jar = _jar({
+        'fabric.mod.json': '{"id": "same", "name": "Same", "version": "1.0"}',
+        'assets/same/lang/en_us.json': '{"a": "A"}',
+      });
+      final entryZ = scanModJar(
+        jarRelativePath: 'z.jar',
+        jar: jar,
+        targetLanguageId: 'ja_jp',
+      ).entry!;
+      final entryA = scanModJar(
+        jarRelativePath: 'a.jar',
+        jar: jar,
+        targetLanguageId: 'ja_jp',
+      ).entry!;
+
+      final sorted = sortModEntriesById([entryZ, entryA]);
+
+      expect(sorted.map((e) => e.jarRelativePath).toList(), ['a.jar', 'z.jar']);
     });
   });
 }

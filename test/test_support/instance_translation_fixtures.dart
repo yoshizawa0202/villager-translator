@@ -12,6 +12,7 @@ import 'package:villager_translator/domain/translation/lang_codec.dart';
 /// 一括翻訳のテストで使う固定のスキャン結果(012 §2)。
 ModScanEntry buildModEntry({
   required String id,
+  String? jarRelativePath,
   Map<String, String> sourceEntries = const {'item.a': 'Item A'},
   bool hasExistingTranslation = false,
 }) => ModScanEntry(
@@ -21,7 +22,7 @@ ModScanEntry buildModEntry({
     version: '1.0',
     source: ModInfoSource.fabricModJson,
   ),
-  jarRelativePath: '$id.jar',
+  jarRelativePath: jarRelativePath ?? '$id.jar',
   langFormat: LangFormat.json,
   sourceLangPath: 'assets/$id/lang/en_us.json',
   sourceEntries: sourceEntries,

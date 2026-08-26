@@ -204,8 +204,8 @@ class InstanceTranslationOrchestrator {
 
       return _buildCategoryOutcome(
         category: category,
-        translatedIds: result.translationResult.translatedModIds,
-        skippedIds: result.translationResult.skippedModIds,
+        translatedIds: result.translationResult.translatedJarRelativePaths,
+        skippedIds: result.translationResult.skippedJarRelativePaths,
         summary: result.summary,
         outputLocations: [
           if (result.packDirectory != null) result.packDirectory!.path,
@@ -216,7 +216,7 @@ class InstanceTranslationOrchestrator {
       // カテゴリ単位で例外を捕捉し、後続カテゴリの処理を継続する(§10、AC-12)。
       return InstanceTranslationCategoryOutcome(
         category: category,
-        failedIds: [for (final entry in selected) entry.modInfo.id],
+        failedIds: [for (final entry in selected) entry.jarRelativePath],
         error: e,
       );
     }

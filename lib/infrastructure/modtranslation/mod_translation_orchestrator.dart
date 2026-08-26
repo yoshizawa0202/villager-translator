@@ -97,6 +97,11 @@ class ModTranslationOrchestrator {
     CurrentItemCallback? onItemStarted,
     int packFormat = kResourcePackFormat,
   }) async {
+    validateUniqueModOutputTargets(
+      entries: selectedEntries,
+      targetLanguageId: targetLanguageId,
+    );
+
     final adapter = _adapterFactory.create(
       settings.llm.provider,
       settings.llm.toAdapterConfig(apiKey: apiKey),
@@ -194,7 +199,7 @@ class ModTranslationOrchestrator {
 
 /// 選択された MOD と処理結果を突き合わせ、翻訳履歴サマリの項目一覧を組み立てる。
 ///
-/// キャンセルにより未着手のまま終わった MOD(outputs にも skippedModIds にも
+/// キャンセルにより未着手のまま終わった MOD(翻訳対象にもスキップ対象にも
 /// 含まれないもの)はこの実行に関する結果がまだ無いため、サマリには含めない。
 TranslationSummary _buildSummary({
   required String sessionId,
@@ -202,14 +207,19 @@ TranslationSummary _buildSummary({
   required List<ModScanEntry> selectedEntries,
   required ModTranslationResult translationResult,
 }) {
-  final entriesById = {for (final e in selectedEntries) e.modInfo.id: e};
-  final outputsById = {for (final o in translationResult.outputs) o.modId: o};
+  final entriesByPath = {
+    for (final entry in selectedEntries) entry.jarRelativePath: entry,
+  };
+  final outputsByPath = {
+    for (final output in translationResult.outputs)
+      output.jarRelativePath: output,
+  };
 
   final items = <TranslationSummaryItem>[];
 
-  for (final modId in translationResult.translatedModIds) {
-    final entry = entriesById[modId];
-    final output = outputsById[modId];
+  for (final target in translationResult.translatedTargets) {
+    final entry = entriesByPath[target.jarRelativePath];
+    final output = outputsByPath[target.jarRelativePath];
     if (entry == null || output == null) continue;
 
     final totalKeyCount = entry.sourceEntries.length;
@@ -220,10 +230,14 @@ TranslationSummary _buildSummary({
     items.add(
       TranslationSummaryItem(
         type: TranslationTargetType.mod,
-        id: modId,
+        id: target.jarRelativePath,
         displayName: entry.modInfo.name,
         targetLanguage: targetLanguageId,
-        outputPath: entry.jarRelativePath,
+        outputPath: buildModLangOutputPath(
+          modId: output.modId,
+          targetLanguageId: targetLanguageId,
+          format: output.format,
+        ),
         success: totalKeyCount == 0 || translatedKeyCount >= totalKeyCount,
         translatedKeyCount: translatedKeyCount,
         totalKeyCount: totalKeyCount,
@@ -231,15 +245,15 @@ TranslationSummary _buildSummary({
     );
   }
 
-  for (final modId in translationResult.skippedModIds) {
-    final entry = entriesById[modId];
+  for (final target in translationResult.skippedTargets) {
+    final entry = entriesByPath[target.jarRelativePath];
     if (entry == null) continue;
 
     final keyCount = entry.sourceEntries.length;
     items.add(
       TranslationSummaryItem(
         type: TranslationTargetType.mod,
-        id: modId,
+        id: target.jarRelativePath,
         displayName: entry.modInfo.name,
         targetLanguage: targetLanguageId,
         outputPath: null,

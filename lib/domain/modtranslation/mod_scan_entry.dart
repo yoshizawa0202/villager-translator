@@ -31,9 +31,13 @@ class ModScanEntry {
 
 /// スキャン時に MOD がスキップされた理由(feature-spec.md §6.1)。
 enum ModScanSkipReason {
-  /// `fabric.mod.json` `mods.toml` `MANIFEST.MF` のいずれからも MOD 情報を
-  /// 取得できなかった。
+  /// `fabric.mod.json` `neoforge.mods.toml` `mods.toml`
+  /// `MANIFEST.MF` のいずれからも MOD 情報を取得できなかった。
   noModInfo,
+
+  /// MANIFEST は存在するが、リソースパック名前空間に使える MOD ID を
+  /// 確定できなかった。
+  unresolvedModId,
 
   /// `lang/en_us.json` `lang/en_us.lang` のいずれも存在しない。
   noLangFile,
