@@ -308,6 +308,8 @@ logs/
 3. 末尾のパスセパレータを除去する
 4. Windows のため、比較時は大文字小文字を区別しない
 
+正規化は `resolveSymbolicLinks()` を伴うため実ファイルシステムへアクセスする処理であり、各 Detector が `MinecraftInstance` を組み立てる時点(infrastructure 層、`lib/infrastructure/minecraftinstance/launcher_detector.dart` の `normalizeInstancePath()`)で行う。重複排除自体(`lib/domain/minecraftinstance/instance_deduplicator.dart`)は、既に正規化済みの `rootPath` 文字列を大文字小文字を無視して比較するだけの純粋関数とする。
+
 名前が同一でも実体パスが異なる場合は、別インスタンスとして両方を保持する。
 
 ```text
@@ -315,9 +317,11 @@ Prism Launcher / Prominence II       → D:\PrismLauncher\instances\PromII\.mine
 CurseForge     / Prominence II       → C:\Users\user\curseforge\minecraft\Instances\Prominence II
 ```
 
-同一パスが複数の Detector から得られた場合は、取得済みメタデータ(`minecraftVersion`、`modLoader`、`lastPlayed`)がより充実している側を採用してマージする。ランチャー種別は、メタデータ確定判定を行った Detector のものを優先する。
+同一パスが複数の Detector から得られた場合、先に検出された側を基準(`base`)として採用し、`base` の `name`・`launcher`・`id` を維持したまま、`base` 側が `null` または `ModLoader.unknown` のフィールド(`minecraftVersion`・`modLoader`・`modLoaderVersion`・`iconPath`)だけを後続の検出結果で補完する。`lastPlayed` は両者のうち新しい方を採用する。
 
-重複排除は純粋関数 `lib/domain/minecraftinstance/instance_deduplicator.dart` に置く。
+この「先着優先」が実質的に「メタデータ確定判定を行った Detector を優先する」結果になるように、`LauncherDiscoveryService.buildDefaultDetectors()`(`lib/infrastructure/minecraftinstance/launcher_discovery_service.dart`)は Detector をランチャー固有メタデータで確定判定できるもの(公式 / Prism / CurseForge / ATLauncher)を先に、単独では確定判定を持たないもの(Modrinth / 手動追加)を後に並べる。ただし `MinecraftInstance` 自体は「その検出が確定判定によるものか」を示すフラグを保持しないため、この優先順は Detector の実行順序のみに依存する。特定のインスタンスについて、先に実行された Detector がそのインスタンスの確定判定に失敗し(メタデータ破損などでマーカー判定へフォールバックし)、後から実行された Detector が同じパスを確定判定できた場合でも、`base` は変わらず先に実行された側のままになる。
+
+重複排除は純粋関数 `lib/domain/minecraftinstance/instance_deduplicator.dart` に置く。正規化(実ファイルシステムアクセスを伴う)はこの関数の外側、Detector 側の責務とする。
 
 ### 12. Minecraft バージョン・Mod Loader の多段フォールバック
 
@@ -626,7 +630,7 @@ ATLauncher のデータディレクトリ配下 `instances/` のインスタン�
 
 ### AC-09: 重複排除
 
-複数の Detector が同一の正規化済み絶対パスを返した場合、一覧に 1 件だけ表示されること。メタデータがより充実している側の値が採用されること。
+複数の Detector が同一の正規化済み絶対パスを返した場合、一覧に 1 件だけ表示されること。先に検出された側の `name`・`launcher`・`id` が維持され、`null` または `ModLoader.unknown` のフィールドのみ後続の検出結果で補完されること。`lastPlayed` は新しい方が採用されること。
 
 ### AC-10: 同名・別パスの保持
 
@@ -707,7 +711,7 @@ MOD / クエスト / Patchouli / カスタムファイルの個別翻訳、プ�
 - 同一の正規化済み絶対パスが 1 件へまとめられること
 - 大文字小文字だけが異なるパスが同一と判定されること
 - 同名・別パスが両方保持されること
-- マージ時にメタデータが充実している側の値が採用されること
+- マージ時に先着側(`base`)の `name`・`launcher`・`id` が維持され、`null`/`ModLoader.unknown` のフィールドのみ後続の検出結果で補完されること
 
 **Detector(infrastructure)**
 
