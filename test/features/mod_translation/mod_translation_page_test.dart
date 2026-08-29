@@ -10,6 +10,7 @@ import 'package:villager_translator/domain/common/translation_progress.dart';
 import 'package:villager_translator/domain/llm/llm_adapter.dart';
 import 'package:villager_translator/domain/llm/llm_adapter_config.dart';
 import 'package:villager_translator/domain/llm/llm_provider.dart';
+import 'package:villager_translator/domain/modtranslation/resource_pack_builder.dart';
 import 'package:villager_translator/domain/settings/app_settings.dart';
 import 'package:villager_translator/features/mod_translation/mod_translation_controller.dart';
 import 'package:villager_translator/features/mod_translation/mod_translation_page.dart';
@@ -53,6 +54,7 @@ class _ProgressHangingOrchestrator extends ModTranslationOrchestrator {
     OverallProgressCallback? onOverallProgress,
     ItemChunkResultCallback? onChunkResult,
     CurrentItemCallback? onItemStarted,
+    int packFormat = kResourcePackFormat,
   }) {
     onItemStarted?.call('Mod A');
     onOverallProgress?.call(

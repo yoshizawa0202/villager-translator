@@ -11,6 +11,7 @@ ModScanEntry _entry(
   String modId,
   Map<String, String> sourceEntries, {
   bool hasExistingTranslation = false,
+  String? jarRelativePath,
 }) {
   return ModScanEntry(
     modInfo: ModInfo(
@@ -19,7 +20,7 @@ ModScanEntry _entry(
       version: '1.0',
       source: ModInfoSource.fabricModJson,
     ),
-    jarRelativePath: '$modId.jar',
+    jarRelativePath: jarRelativePath ?? '$modId.jar',
     langFormat: LangFormat.json,
     sourceLangPath: 'assets/$modId/lang/en_us.json',
     sourceEntries: sourceEntries,
@@ -51,7 +52,10 @@ void main() {
 
       expect(result.skippedModIds, ['modb']);
       expect(result.translatedModIds, ['moda']);
+      expect(result.skippedJarRelativePaths, ['modb.jar']);
+      expect(result.translatedJarRelativePaths, ['moda.jar']);
       expect(result.outputs.single.modId, 'moda');
+      expect(result.outputs.single.jarRelativePath, 'moda.jar');
       expect(result.outputs.single.entries, {'a': '[訳]1'});
     });
 
@@ -139,6 +143,26 @@ void main() {
       );
 
       expect(processedOrder, ['amod', 'zmod']);
+    });
+
+    test('同じMOD IDでもJAR相対パスごとに翻訳結果を識別する(受け入れ条件16)', () async {
+      final entryZ = _entry('same', {'z': '1'}, jarRelativePath: 'z-same.jar');
+      final entryA = _entry('same', {'a': '2'}, jarRelativePath: 'a-same.jar');
+
+      final result = await translateSelectedMods(
+        selectedEntries: [entryZ, entryA],
+        policy: ExistingTranslationPolicy.retranslateAll,
+        loadExistingTargetEntries: (_) async => null,
+        chunkEntries: _singleChunk,
+        translateChunk: _fakeTranslate,
+      );
+
+      expect(result.translatedModIds, ['same', 'same']);
+      expect(result.translatedJarRelativePaths, ['a-same.jar', 'z-same.jar']);
+      expect(result.outputs.map((output) => output.jarRelativePath), [
+        'a-same.jar',
+        'z-same.jar',
+      ]);
     });
 
     test('キャンセル済みの場合、以降の MOD の処理を開始しない(受け入れ条件5)', () async {

@@ -21,7 +21,7 @@ void main() {
   });
 
   test(
-    'fabric.mod.json → mods.toml → MANIFEST.MF の優先順で MOD 情報を取得する(受け入れ条件1)',
+    'Fabric・NeoForge・ForgeからMOD情報を取得し、MANIFESTだけのJARは除外する(受け入れ条件1,2)',
     () async {
       await writeFakeJar(File(p.join(tempDir.path, 'mods', 'fabric.jar')), {
         'fabric.mod.json':
@@ -33,6 +33,11 @@ void main() {
             '[[mods]]\nmodId="forgemod"\ndisplayName="Forge Mod"\nversion="2.0"',
         'assets/forgemod/lang/en_us.json': '{"a": "A"}',
       });
+      await writeFakeJar(File(p.join(tempDir.path, 'mods', 'neo.jar')), {
+        'META-INF/neoforge.mods.toml':
+            '[[mods]]\nmodId="neomod"\ndisplayName="Neo Mod"\nversion="3.0"',
+        'assets/neomod/lang/en_us.json': '{"a": "A"}',
+      });
       await writeFakeJar(
         File(p.join(tempDir.path, 'mods', 'manifestonly.jar')),
         {
@@ -41,16 +46,20 @@ void main() {
         },
       );
 
+      final skips = <ModScanSkip>[];
       final result = await scanModsDirectory(
         profileDirectory: tempDir,
         targetLanguageId: 'ja_jp',
+        onSkip: skips.add,
       );
 
       expect(result.entries, hasLength(3));
       final byId = {for (final e in result.entries) e.jarRelativePath: e};
       expect(byId['fabric.jar']!.modInfo.id, 'fabricmod');
       expect(byId['forge.jar']!.modInfo.id, 'forgemod');
-      expect(byId['manifestonly.jar']!.modInfo.id, 'unknown');
+      expect(byId['neo.jar']!.modInfo.id, 'neomod');
+      expect(skips.single.jarRelativePath, 'manifestonly.jar');
+      expect(skips.single.reason, ModScanSkipReason.unresolvedModId);
     },
   );
 

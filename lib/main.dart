@@ -5,8 +5,9 @@ import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 
 import 'domain/settings/app_settings.dart';
+import 'features/instance_list/instance_list_page.dart';
 import 'features/settings/settings_controller.dart';
-import 'features/shell/main_shell_page.dart';
+import 'infrastructure/minecraftinstance/windows_environment.dart';
 import 'infrastructure/settings/secure_api_key_store.dart';
 import 'infrastructure/settings/settings_repository.dart';
 
@@ -47,6 +48,7 @@ class VillagerTranslatorApp extends StatelessWidget {
     super.key,
     required this.settingsController,
     this.applicationSupportDirectory,
+    this.instanceListEnvironment = const PlatformWindowsEnvironment(),
   });
 
   final SettingsController settingsController;
@@ -55,6 +57,11 @@ class VillagerTranslatorApp extends StatelessWidget {
   /// `main()` で解決したディレクトリをそのまま渡す(テストでは `null` のまま
   /// 使い、アプリケーションログの書き出しをスキップする)。
   final Directory? applicationSupportDirectory;
+
+  /// インスタンス検出が参照する環境変数・ドライブ一覧
+  /// (011-launcher-instance-discovery.md §4)。テストでは差し替えて、実際の
+  /// ランチャーがインストールされていなくても起動画面を検証できるようにする。
+  final WindowsEnvironment instanceListEnvironment;
 
   @override
   Widget build(BuildContext context) {
@@ -78,8 +85,12 @@ class VillagerTranslatorApp extends StatelessWidget {
               useMaterial3: true,
             ),
             themeMode: _toFlutterThemeMode(settings.settings.themeMode),
-            home: MainShellPage(
+            // 起動時ホーム画面は Minecraft インスタンス一覧
+            // (011-launcher-instance-discovery.md §13)。従来の 4 タブ画面
+            // ([MainShellPage])はこの画面からいつでも開ける(§17)。
+            home: InstanceListPage(
               applicationSupportDirectory: applicationSupportDirectory,
+              environment: instanceListEnvironment,
             ),
           );
         },

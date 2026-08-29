@@ -1,4 +1,7 @@
-/// LLM 応答テキストから `key: value` 形式の行を抽出し、翻訳結果の Map を復元する。
+import 'translation_wire_codec.dart';
+
+/// LLM 応答テキストから `key: JSON文字列リテラル` 形式の行を抽出し、
+/// 翻訳結果の Map を復元する。引用符なしの旧形式も後方互換として受理する。
 ///
 /// まず各キーに対する厳密な正規表現一致(`_parseStrict`)を試みる。全キーを
 /// 復元できなかった場合は、Markdown 装飾(コードブロック記号・見出し・箇条書き
@@ -35,7 +38,7 @@ Map<String, String> _parseStrict(String rawText, List<String> originalKeys) {
     for (final line in lines) {
       final match = pattern.firstMatch(line.trim());
       if (match != null) {
-        result[key] = match.group(1)!.trim();
+        result[key] = decodeTranslationValue(match.group(1)!);
         break;
       }
     }
@@ -79,7 +82,9 @@ Map<String, String> _parseByLinePosition(
     final line = candidateLines[i];
     final pattern = RegExp('^${RegExp.escape(key)}:\\s*(.+)\$');
     final match = pattern.firstMatch(line);
-    result[key] = match != null ? match.group(1)!.trim() : line;
+    result[key] = decodeTranslationValue(
+      match != null ? match.group(1)! : line,
+    );
   }
   return result;
 }

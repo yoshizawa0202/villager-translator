@@ -22,14 +22,37 @@ typedef ExistingTargetEntriesLoader =
 Future<void> _defaultWaiter(Duration duration) =>
     Future<void>.delayed(duration);
 
+/// 翻訳処理中の MOD 1件を一意に参照する情報。
+///
+/// MOD ID はリソースパックの名前空間であり、同じ ID の JAR が複数存在し得る。
+/// 入力・結果・再試行の突き合わせには [jarRelativePath] を使う。
+class ModTranslationTarget {
+  const ModTranslationTarget({
+    required this.jarRelativePath,
+    required this.modId,
+  });
+
+  factory ModTranslationTarget.fromEntry(ModScanEntry entry) =>
+      ModTranslationTarget(
+        jarRelativePath: entry.jarRelativePath,
+        modId: entry.modInfo.id,
+      );
+
+  final String jarRelativePath;
+  final String modId;
+}
+
 /// 翻訳が完了した MOD 1件分の出力(リソースパックへ書き出す内容)。
 class ModTranslationOutput {
   const ModTranslationOutput({
+    required this.jarRelativePath,
     required this.modId,
     required this.format,
     required this.entries,
   });
 
+  /// この出力の入力元を一意に識別する `mods/` からの相対パス。
+  final String jarRelativePath;
   final String modId;
   final LangFormat format;
 
@@ -41,18 +64,32 @@ class ModTranslationOutput {
 class ModTranslationResult {
   const ModTranslationResult({
     required this.outputs,
-    required this.translatedModIds,
-    required this.skippedModIds,
+    required this.translatedTargets,
+    required this.skippedTargets,
   });
 
   /// リソースパックへ書き出す MOD ごとの出力(スキップされた MOD は含まない)。
   final List<ModTranslationOutput> outputs;
 
-  /// 翻訳(または差分更新)が実施された MOD ID の一覧。
-  final List<String> translatedModIds;
+  /// 翻訳(または差分更新)を実施した対象。チャンク失敗を含む。
+  final List<ModTranslationTarget> translatedTargets;
 
-  /// スキップされた MOD ID の一覧。
-  final List<String> skippedModIds;
+  /// 既存翻訳方針によりスキップされた対象。
+  final List<ModTranslationTarget> skippedTargets;
+
+  /// UI 表示との後方互換用。内部の突き合わせには使用しない。
+  List<String> get translatedModIds =>
+      translatedTargets.map((target) => target.modId).toList();
+
+  /// UI 表示との後方互換用。内部の突き合わせには使用しない。
+  List<String> get skippedModIds =>
+      skippedTargets.map((target) => target.modId).toList();
+
+  List<String> get translatedJarRelativePaths =>
+      translatedTargets.map((target) => target.jarRelativePath).toList();
+
+  List<String> get skippedJarRelativePaths =>
+      skippedTargets.map((target) => target.jarRelativePath).toList();
 
   /// リソースパックを作成すべきかどうか(受け入れ条件11)。
   bool get hasOutputs => outputs.isNotEmpty;
@@ -61,7 +98,8 @@ class ModTranslationResult {
 /// 選択された MOD を、既存翻訳の扱い([policy])に従って翻訳する
 /// (feature-spec.md §6.2)。
 ///
-/// 処理順序は MOD ID のアルファベット順に固定する(受け入れ条件7)。
+/// 処理順序は MOD ID、同一 ID 内では JAR 相対パスのアルファベット順に
+/// 固定する(受け入れ条件7)。
 /// - **スキップ**: 翻訳直前に対象言語ファイルの存在を再確認し、存在すれば
 ///   スキップ件数としてカウントする(受け入れ条件8)。
 /// - **差分更新**: `003` の差分更新ロジックで不足キーのみを翻訳し、
@@ -84,8 +122,8 @@ Future<ModTranslationResult> translateSelectedMods({
   final orderedEntries = sortModEntriesById(selectedEntries);
 
   final outputs = <ModTranslationOutput>[];
-  final translatedModIds = <String>[];
-  final skippedModIds = <String>[];
+  final translatedTargets = <ModTranslationTarget>[];
+  final skippedTargets = <ModTranslationTarget>[];
   var processedCount = 0;
 
   for (final entry in orderedEntries) {
@@ -101,7 +139,7 @@ Future<ModTranslationResult> translateSelectedMods({
 
     if (policy == ExistingTranslationPolicy.skip) {
       if (existing != null) {
-        skippedModIds.add(entry.modInfo.id);
+        skippedTargets.add(ModTranslationTarget.fromEntry(entry));
         processedCount++;
         onOverallProgress?.call(
           OverallProgress(
@@ -119,7 +157,7 @@ Future<ModTranslationResult> translateSelectedMods({
         existingTargetEntries: existing,
       );
       if (job.isSkipped) {
-        skippedModIds.add(entry.modInfo.id);
+        skippedTargets.add(ModTranslationTarget.fromEntry(entry));
         processedCount++;
         onOverallProgress?.call(
           OverallProgress(
@@ -162,9 +200,10 @@ Future<ModTranslationResult> translateSelectedMods({
           )
         : <String, String>{...baseExisting, ...newlyTranslated};
 
-    translatedModIds.add(entry.modInfo.id);
+    translatedTargets.add(ModTranslationTarget.fromEntry(entry));
     outputs.add(
       ModTranslationOutput(
+        jarRelativePath: entry.jarRelativePath,
         modId: entry.modInfo.id,
         format: entry.langFormat,
         entries: finalEntries,
@@ -181,7 +220,7 @@ Future<ModTranslationResult> translateSelectedMods({
 
   return ModTranslationResult(
     outputs: outputs,
-    translatedModIds: translatedModIds,
-    skippedModIds: skippedModIds,
+    translatedTargets: translatedTargets,
+    skippedTargets: skippedTargets,
   );
 }

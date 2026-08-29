@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../domain/minecraftinstance/minecraft_instance.dart';
 import '../../domain/settings/app_settings.dart';
 import '../../infrastructure/common/session_logger.dart';
 import '../custom_file_translation/custom_file_translation_controller.dart';
@@ -34,6 +35,7 @@ class MainShellPage extends StatefulWidget {
     this.patchouliController,
     this.customFileController,
     this.applicationSupportDirectory,
+    this.instance,
   });
 
   /// テスト用にコントローラーを直接注入するためのフック群。
@@ -46,6 +48,13 @@ class MainShellPage extends StatefulWidget {
 
   /// アプリケーションログ・履歴の書き出し/参照先(プロファイル非依存、Issue#10)。
   final Directory? applicationSupportDirectory;
+
+  /// 表示用のインスタンス情報(011-launcher-instance-discovery.md §13)。
+  ///
+  /// インスタンス一覧を経由して開かれた場合にのみ指定され、AppBar へ
+  /// インスタンス名・Minecraft バージョン・Mod Loader を表示する。従来どおり
+  /// フォルダを手動指定して開く経路では `null` のままで、表示も動作も変わらない。
+  final MinecraftInstance? instance;
 
   @override
   State<MainShellPage> createState() => _MainShellPageState();
@@ -102,6 +111,16 @@ class _MainShellPageState extends State<MainShellPage>
   void dispose() {
     _tabController.dispose();
     super.dispose();
+  }
+
+  /// AppBar のタイトル。インスタンス経由で開かれた場合はインスタンス名・
+  /// Minecraft バージョン・Mod Loader を併記する
+  /// (011-launcher-instance-discovery.md §13)。
+  String _appBarTitle() {
+    final instance = widget.instance;
+    if (instance == null) return 'Villager Translator';
+    return '${instance.name}(Minecraft ${instance.minecraftVersionLabel} / '
+        '${instance.modLoader.displayName})';
   }
 
   bool _isBusy(Enum state) =>
@@ -169,7 +188,7 @@ class _MainShellPageState extends State<MainShellPage>
 
           return Scaffold(
             appBar: AppBar(
-              title: const Text('Villager Translator'),
+              title: Text(_appBarTitle()),
               bottom: PreferredSize(
                 preferredSize: const Size.fromHeight(48),
                 child: IgnorePointer(

@@ -30,6 +30,7 @@ ModScanOutcome scanModJar({
 }) {
   final modInfo = resolveModInfo(
     fabricModJson: readJarText(jar, 'fabric.mod.json'),
+    neoForgeModsToml: readJarText(jar, 'META-INF/neoforge.mods.toml'),
     modsToml: readJarText(jar, 'META-INF/mods.toml'),
     manifestMf: readJarText(jar, 'META-INF/MANIFEST.MF'),
   );
@@ -39,6 +40,15 @@ ModScanOutcome scanModJar({
       ModScanSkip(
         jarRelativePath: jarRelativePath,
         reason: ModScanSkipReason.noModInfo,
+      ),
+    );
+  }
+
+  if (modInfo.id == 'unknown') {
+    return ModScanOutcome.skipped(
+      ModScanSkip(
+        jarRelativePath: jarRelativePath,
+        reason: ModScanSkipReason.unresolvedModId,
       ),
     );
   }
@@ -120,10 +130,15 @@ bool hasExistingTranslationInJar(
   );
 }
 
-/// 選択した MOD を MOD ID のアルファベット順にソートする
+/// 選択した MOD を MOD ID、同一 ID 内では JAR 相対パスの
+/// アルファベット順にソートする
 /// (決定論的な処理順、feature-spec.md §6.2、受け入れ条件7)。
 List<ModScanEntry> sortModEntriesById(Iterable<ModScanEntry> entries) {
   final sorted = entries.toList()
-    ..sort((a, b) => a.modInfo.id.compareTo(b.modInfo.id));
+    ..sort((a, b) {
+      final byModId = a.modInfo.id.compareTo(b.modInfo.id);
+      if (byModId != 0) return byModId;
+      return a.jarRelativePath.compareTo(b.jarRelativePath);
+    });
   return sorted;
 }

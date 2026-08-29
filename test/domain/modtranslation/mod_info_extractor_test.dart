@@ -64,6 +64,16 @@ modId="minimalmod"
       final info = extractModInfoFromModsToml('modLoader="javafml"');
       expect(info, isNull);
     });
+
+    test('NeoForge由来として取得元を区別できる', () {
+      final info = extractModInfoFromModsToml(
+        '[[mods]]\nmodId="neomod"',
+        source: ModInfoSource.neoForgeModsToml,
+      );
+
+      expect(info!.id, 'neomod');
+      expect(info.source, ModInfoSource.neoForgeModsToml);
+    });
   });
 
   group('extractModInfoFromManifest', () {
@@ -78,6 +88,7 @@ modId="minimalmod"
     test('fabric.mod.json が優先される', () {
       final info = resolveModInfo(
         fabricModJson: '{"id": "fabricmod", "name": "F", "version": "1.0"}',
+        neoForgeModsToml: '[[mods]]\nmodId="neomod"',
         modsToml: '[[mods]]\nmodId="forgemod"',
         manifestMf: 'Manifest-Version: 1.0',
       );
@@ -86,9 +97,22 @@ modId="minimalmod"
       expect(info.source, ModInfoSource.fabricModJson);
     });
 
+    test('neoforge.mods.toml が mods.toml より優先される', () {
+      final info = resolveModInfo(
+        fabricModJson: null,
+        neoForgeModsToml: '[[mods]]\nmodId="neomod"',
+        modsToml: '[[mods]]\nmodId="forgemod"',
+        manifestMf: 'Manifest-Version: 1.0',
+      );
+
+      expect(info!.id, 'neomod');
+      expect(info.source, ModInfoSource.neoForgeModsToml);
+    });
+
     test('fabric.mod.json が解決できない場合は mods.toml にフォールバックする', () {
       final info = resolveModInfo(
         fabricModJson: '{not valid json',
+        neoForgeModsToml: null,
         modsToml: '[[mods]]\nmodId="forgemod"',
         manifestMf: 'Manifest-Version: 1.0',
       );
