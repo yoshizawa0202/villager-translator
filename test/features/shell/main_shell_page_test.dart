@@ -191,6 +191,8 @@ void main() {
     await tester.pumpAndSettle();
 
     Future<void> expectProfileDirectoryField(String tabKey) async {
+      await tester.tap(find.byKey(Key(tabKey)));
+      await tester.pumpAndSettle();
       expect(
         tester
             .widget<TextField>(find.byKey(const Key('profileDirectoryField')))
@@ -198,17 +200,6 @@ void main() {
             .text,
         'C:/initial-profile',
       );
-      if (tabKey != 'modTab') {
-        await tester.tap(find.byKey(Key(tabKey)));
-        await tester.pumpAndSettle();
-        expect(
-          tester
-              .widget<TextField>(find.byKey(const Key('profileDirectoryField')))
-              .controller!
-              .text,
-          'C:/initial-profile',
-        );
-      }
     }
 
     await expectProfileDirectoryField('modTab');
@@ -264,6 +255,8 @@ void main() {
       String tabKey,
       String expectedPath,
     ) async {
+      await tester.tap(find.byKey(Key(tabKey)));
+      await tester.pumpAndSettle();
       expect(
         tester
             .widget<TextField>(find.byKey(const Key('profileDirectoryField')))
@@ -271,17 +264,6 @@ void main() {
             .text,
         expectedPath,
       );
-      if (tabKey != 'modTab') {
-        await tester.tap(find.byKey(Key(tabKey)));
-        await tester.pumpAndSettle();
-        expect(
-          tester
-              .widget<TextField>(find.byKey(const Key('profileDirectoryField')))
-              .controller!
-              .text,
-          expectedPath,
-        );
-      }
     }
 
     await expectProfileDirectoryField('modTab', 'C:/updated-profile');
