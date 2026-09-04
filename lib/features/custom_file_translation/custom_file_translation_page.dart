@@ -59,17 +59,20 @@ class CustomFileTranslationTabViewState
     extends State<CustomFileTranslationTabView> {
   final _directoryController = TextEditingController();
   late final CustomFileTranslationController _controller;
+  String? _lastSyncedProfileDirectoryPath;
   CustomFileTranslateAndWriteResult? _lastShownResult;
 
   @override
   void initState() {
     super.initState();
     _controller = context.read<CustomFileTranslationController>();
+    _syncProfileDirectoryField();
     _controller.addListener(_onControllerChanged);
   }
 
   void _onControllerChanged() {
     if (!mounted) return;
+    _syncProfileDirectoryField();
     final result = _controller.lastResult;
     if (_controller.state == CustomFileTabState.completed &&
         result != null &&
@@ -85,6 +88,14 @@ class CustomFileTranslationTabViewState
         ),
       );
     }
+  }
+
+  void _syncProfileDirectoryField() {
+    final path = _controller.profileDirectory?.path;
+    if (path == _lastSyncedProfileDirectoryPath) return;
+
+    _lastSyncedProfileDirectoryPath = path;
+    _directoryController.text = path ?? '';
   }
 
   @override

@@ -58,17 +58,20 @@ class QuestTranslationTabView extends StatefulWidget {
 class QuestTranslationTabViewState extends State<QuestTranslationTabView> {
   final _directoryController = TextEditingController();
   late final QuestTranslationController _controller;
+  String? _lastSyncedProfileDirectoryPath;
   QuestTranslateAndWriteResult? _lastShownResult;
 
   @override
   void initState() {
     super.initState();
     _controller = context.read<QuestTranslationController>();
+    _syncProfileDirectoryField();
     _controller.addListener(_onControllerChanged);
   }
 
   void _onControllerChanged() {
     if (!mounted) return;
+    _syncProfileDirectoryField();
     final result = _controller.lastResult;
     if (_controller.state == QuestTabState.completed &&
         result != null &&
@@ -84,6 +87,14 @@ class QuestTranslationTabViewState extends State<QuestTranslationTabView> {
         ),
       );
     }
+  }
+
+  void _syncProfileDirectoryField() {
+    final path = _controller.profileDirectory?.path;
+    if (path == _lastSyncedProfileDirectoryPath) return;
+
+    _lastSyncedProfileDirectoryPath = path;
+    _directoryController.text = path ?? '';
   }
 
   @override

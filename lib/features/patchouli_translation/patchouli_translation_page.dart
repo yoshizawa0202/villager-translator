@@ -59,17 +59,20 @@ class PatchouliTranslationTabViewState
     extends State<PatchouliTranslationTabView> {
   final _directoryController = TextEditingController();
   late final PatchouliTranslationController _controller;
+  String? _lastSyncedProfileDirectoryPath;
   PatchouliTranslateAndWriteResult? _lastShownResult;
 
   @override
   void initState() {
     super.initState();
     _controller = context.read<PatchouliTranslationController>();
+    _syncProfileDirectoryField();
     _controller.addListener(_onControllerChanged);
   }
 
   void _onControllerChanged() {
     if (!mounted) return;
+    _syncProfileDirectoryField();
     final result = _controller.lastResult;
     if (_controller.state == PatchouliTabState.completed &&
         result != null &&
@@ -85,6 +88,14 @@ class PatchouliTranslationTabViewState
         ),
       );
     }
+  }
+
+  void _syncProfileDirectoryField() {
+    final path = _controller.profileDirectory?.path;
+    if (path == _lastSyncedProfileDirectoryPath) return;
+
+    _lastSyncedProfileDirectoryPath = path;
+    _directoryController.text = path ?? '';
   }
 
   @override
