@@ -14,7 +14,8 @@
 
 ### トリガー
 
-- `main` への push / `main` 向け pull request
+- `main` / `dev` への push
+- `main` / `dev` 向け pull request
 - `v*` タグの push
 - `workflow_dispatch`(手動実行)
 
