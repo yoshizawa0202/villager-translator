@@ -150,6 +150,192 @@ void main() {
     expect(customFileController.profileDirectory!.path, 'C:/shared-profile');
   });
 
+  testWidgets('生成前に設定済みのプロファイルディレクトリが全タブの表示へ反映される', (tester) async {
+    final settingsController = await _buildSettingsController();
+    final shared = ProfileDirectoryController()..setPath('C:/initial-profile');
+    final modController = ModTranslationController(
+      settingsController: settingsController,
+      profileDirectoryController: shared,
+    );
+    final questController = QuestTranslationController(
+      settingsController: settingsController,
+      profileDirectoryController: shared,
+    );
+    final patchouliController = PatchouliTranslationController(
+      settingsController: settingsController,
+      profileDirectoryController: shared,
+    );
+    final customFileController = CustomFileTranslationController(
+      settingsController: settingsController,
+      profileDirectoryController: shared,
+    );
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<SettingsController>.value(
+            value: settingsController,
+          ),
+        ],
+        child: MaterialApp(
+          home: MainShellPage(
+            profileDirectoryController: shared,
+            modController: modController,
+            questController: questController,
+            patchouliController: patchouliController,
+            customFileController: customFileController,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    Future<void> expectProfileDirectoryField(String tabKey) async {
+      await tester.tap(find.byKey(Key(tabKey)));
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<TextField>(find.byKey(const Key('profileDirectoryField')))
+            .controller!
+            .text,
+        'C:/initial-profile',
+      );
+    }
+
+    await expectProfileDirectoryField('modTab');
+    await expectProfileDirectoryField('questTab');
+    await expectProfileDirectoryField('patchouliTab');
+    await expectProfileDirectoryField('customFileTab');
+  });
+
+  testWidgets('生成後の共有プロファイルディレクトリ変更が全タブの表示へ反映される', (tester) async {
+    final settingsController = await _buildSettingsController();
+    final shared = ProfileDirectoryController();
+    final modController = ModTranslationController(
+      settingsController: settingsController,
+      profileDirectoryController: shared,
+    );
+    final questController = QuestTranslationController(
+      settingsController: settingsController,
+      profileDirectoryController: shared,
+    );
+    final patchouliController = PatchouliTranslationController(
+      settingsController: settingsController,
+      profileDirectoryController: shared,
+    );
+    final customFileController = CustomFileTranslationController(
+      settingsController: settingsController,
+      profileDirectoryController: shared,
+    );
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<SettingsController>.value(
+            value: settingsController,
+          ),
+        ],
+        child: MaterialApp(
+          home: MainShellPage(
+            profileDirectoryController: shared,
+            modController: modController,
+            questController: questController,
+            patchouliController: patchouliController,
+            customFileController: customFileController,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    modController.setProfileDirectoryPath('C:/updated-profile');
+    await tester.pump();
+
+    Future<void> expectProfileDirectoryField(
+      String tabKey,
+      String expectedPath,
+    ) async {
+      await tester.tap(find.byKey(Key(tabKey)));
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<TextField>(find.byKey(const Key('profileDirectoryField')))
+            .controller!
+            .text,
+        expectedPath,
+      );
+    }
+
+    await expectProfileDirectoryField('modTab', 'C:/updated-profile');
+    await expectProfileDirectoryField('questTab', 'C:/updated-profile');
+    await expectProfileDirectoryField('patchouliTab', 'C:/updated-profile');
+    await expectProfileDirectoryField('customFileTab', 'C:/updated-profile');
+
+    shared.clear();
+    await tester.pump();
+
+    await expectProfileDirectoryField('customFileTab', '');
+    await expectProfileDirectoryField('modTab', '');
+    await expectProfileDirectoryField('questTab', '');
+    await expectProfileDirectoryField('patchouliTab', '');
+  });
+
+  testWidgets('無関係なController通知で入力途中のプロファイルディレクトリを上書きしない', (tester) async {
+    final settingsController = await _buildSettingsController();
+    final shared = ProfileDirectoryController()..setPath('C:/shared-profile');
+    final modController = ModTranslationController(
+      settingsController: settingsController,
+      profileDirectoryController: shared,
+    );
+    final questController = QuestTranslationController(
+      settingsController: settingsController,
+      profileDirectoryController: shared,
+    );
+    final patchouliController = PatchouliTranslationController(
+      settingsController: settingsController,
+      profileDirectoryController: shared,
+    );
+    final customFileController = CustomFileTranslationController(
+      settingsController: settingsController,
+      profileDirectoryController: shared,
+    );
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<SettingsController>.value(
+            value: settingsController,
+          ),
+        ],
+        child: MaterialApp(
+          home: MainShellPage(
+            profileDirectoryController: shared,
+            modController: modController,
+            questController: questController,
+            patchouliController: patchouliController,
+            customFileController: customFileController,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byKey(const Key('profileDirectoryField')),
+      'C:/typed-profile',
+    );
+    modController.setSearchQuery('unrelated-notification');
+    await tester.pump();
+
+    expect(
+      tester
+          .widget<TextField>(find.byKey(const Key('profileDirectoryField')))
+          .controller!
+          .text,
+      'C:/typed-profile',
+    );
+  });
+
   testWidgets('各タブの対象言語選択は互いに独立している(受け入れ条件3)', (tester) async {
     final settingsController = await _buildSettingsController();
     final shared = ProfileDirectoryController();
