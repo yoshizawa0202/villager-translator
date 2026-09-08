@@ -60,7 +60,9 @@ flutter build windows --release
 
 ## CI/CD
 
-GitHub Actions は pull request と `main` への push で静的解析・テスト・Windows Release ビルドを実行します。`v*` 形式のタグでは、Windows 配布バンドルを添付した GitHub Release を作成します。
+GitHub Actions は `main` / `dev` 向け pull request と両ブランチへの push で静的解析・テスト・Windows Release ビルドを実行します。`v*` 形式のタグでは、Windows 配布バンドルを添付した GitHub Release を作成します。
+
+ブランチ運用、PR、リリース手順は [CONTRIBUTING.md](CONTRIBUTING.md) を参照してください。
 
 ## ライセンス
 
